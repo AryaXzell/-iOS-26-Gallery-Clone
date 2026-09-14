@@ -50,6 +50,7 @@ import com.example.core.data.MediaItem
 import com.example.core.designsystem.GlassSurface
 import com.example.core.designsystem.GlassTier
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun MemoriesPlayerScreen(
@@ -75,19 +76,18 @@ fun MemoriesPlayerScreen(
         if (!isPaused) {
             scale.snapTo(1.0f)
             transX.snapTo(-30f)
-            scale.animateTo(
-                targetValue = 1.25f,
-                animationSpec = tween(durationMillis = 4000, easing = LinearEasing)
-            )
-        }
-    }
-
-    LaunchedEffect(currentIndex, isPaused) {
-        if (!isPaused) {
-            transX.animateTo(
-                targetValue = 30f,
-                animationSpec = tween(durationMillis = 4000, easing = LinearEasing)
-            )
+            launch {
+                scale.animateTo(
+                    targetValue = 1.25f,
+                    animationSpec = tween(durationMillis = 4000, easing = LinearEasing)
+                )
+            }
+            launch {
+                transX.animateTo(
+                    targetValue = 30f,
+                    animationSpec = tween(durationMillis = 4000, easing = LinearEasing)
+                )
+            }
             delay(4000)
             currentIndex = (currentIndex + 1) % photos.size
         }

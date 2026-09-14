@@ -186,6 +186,15 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun deleteMedia(id: Long) {
+        viewModelScope.launch {
+            repository.deleteMedia(id)
+            if (_activeDetailItem.value?.id == id) {
+                _activeDetailItem.value = null
+            }
+        }
+    }
+
     fun favoriteSelected() {
         viewModelScope.launch {
             _filterConfig.value.selectedIds.forEach { id ->

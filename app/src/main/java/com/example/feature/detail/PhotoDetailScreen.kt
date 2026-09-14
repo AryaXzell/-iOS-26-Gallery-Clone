@@ -282,8 +282,9 @@ fun PhotoDetailScreen(
                     // 1. Share
                     IconButton(onClick = {
                         val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "image/*"
+                            type = if (activeItem.isVideo) "video/*" else "image/*"
                             putExtra(Intent.EXTRA_STREAM, activeItem.uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
                         context.startActivity(Intent.createChooser(shareIntent, "Share Media"))
                     }) {
@@ -325,7 +326,7 @@ fun PhotoDetailScreen(
 
                     // 5. Trash
                     IconButton(onClick = {
-                        viewModel.deleteSelected()
+                        viewModel.deleteMedia(activeItem.id)
                         onBack()
                     }) {
                         Icon(

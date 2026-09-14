@@ -1,49 +1,49 @@
-# 📸 Gallery — iOS 26 Photos Native Android Clone
+# Gallery — iOS 26 Photos Native Android Clone
 
-A pixel-perfect native Android clone of the **iOS 26 Photos** application built with **Jetpack Compose**, **Material 3**, **Media3 ExoPlayer**, and a custom **Liquid Glass Design System**.
+A native Android clone of the **iOS 26 Photos** application built with **Jetpack Compose**, **Material 3**, **Media3 ExoPlayer**, and a custom **Liquid Glass Design System**.
 
 ---
 
-## ✨ Features & Architecture
+## Features and Architecture
 
-### 💎 Liquid Glass Design System
+### Liquid Glass Design System
 * **Three Precision Tiers**:
   * **Controls Glass** (`18dp` radius, `14dp` blur): Floating action blobs, icon buttons, pill switches.
   * **Standard Glass** (`26dp` radius, `28dp` blur): Modal sheets, info drawers, section containers.
-  * **Utility Glass** (`16dp` radius, `10dp` blur): Auto-hiding full-screen toolbars & overlay badges.
+  * **Utility Glass** (`16dp` radius, `10dp` blur): Auto-hiding full-screen toolbars and overlay badges.
 * **Specular Edge Highlights**: 0.5dp top-light specular borders with ambient shadow gradients.
 * **Accessibility Settings**: Real-time toggles for **Reduce Transparency** (solid surface fallback) and **Reduce Motion** (instant transitions).
 
 ---
 
-### 📱 Core Application Modules
+### Core Application Modules
 
 ```
 com.example/
-├── MainActivity.kt                  # Root screen switcher & system navigation
+├── MainActivity.kt                  # Root screen switcher and system navigation
 ├── core/
-│   ├── common/                      # CompositionLocal settings & theme utilities
+│   ├── common/                      # CompositionLocal settings and theme utilities
 │   ├── data/
 │   │   ├── MediaItem.kt             # Domain models (Photo, Video, EXIF, Edit adjustments)
-│   │   ├── MediaRepository.kt       # MediaStore querying & Room synchronization
+│   │   ├── MediaRepository.kt       # MediaStore querying and Room synchronization
 │   │   └── db/                      # Room database (Albums, Searches, Favorites, Edits)
 │   └── designsystem/
 │       ├── GlassTokens.kt           # Radius, blur, and alpha specifications
-│       ├── GlassSurface.kt          # Liquid glass surface composable & specular shader
+│       ├── GlassSurface.kt          # Liquid glass surface composable and specular shader
 │       └── GlassBlobTabBar.kt       # iOS 26 bottom-left floating blob switcher
 └── feature/
-    ├── library/                     # Edge-to-edge chronological photo grid & filters
+    ├── library/                     # Edge-to-edge chronological photo grid and filters
     ├── collections/                 # 8 modular sections (Recent Days, People & Pets, Albums)
-    ├── search/                      # Real-time search, category tiles & search history
-    ├── detail/                      # Fullscreen detail viewer, EXIF sheet & Media3 video player
-    ├── edit/                        # Adjustments, color filters, crop/rotate & markup canvas
+    ├── search/                      # Real-time search, category tiles and search history
+    ├── detail/                      # Fullscreen detail viewer, EXIF sheet and Media3 video player
+    ├── edit/                        # Adjustments, color filters, crop/rotate and markup canvas
     ├── memories/                    # Ken Burns cinematic slideshow player
-    └── settings/                    # Accessibility & display preferences
+    └── settings/                    # Accessibility and display preferences
 ```
 
 ---
 
-### 🌟 Key Capabilities
+### Key Capabilities
 1. **Library**:
    - Edge-to-edge chronological photo grid grouped with sticky month headers.
    - Density switcher toggle (3-column vs 5-column grid).
@@ -78,7 +78,7 @@ com.example/
 
 ---
 
-## 🛠️ Tech Stack & Dependencies
+## Tech Stack and Dependencies
 
 * **Language**: Kotlin 2.0+
 * **UI Toolkit**: Jetpack Compose (BOM 2024+)
@@ -86,11 +86,11 @@ com.example/
 * **Local Persistence**: Room Database (`androidx.room`) with KSP
 * **Image Loading**: Coil Compose 2.7.0
 * **Media Playback**: Media3 ExoPlayer 1.4.1
-* **Testing**: Robolectric (JVM local tests) & Roborazzi (Screenshot regression tests)
+* **Testing**: Robolectric (JVM local tests) and Roborazzi (Screenshot regression tests)
 
 ---
 
-## 🚀 Building the Project
+## Building the Project
 
 ### Prerequisites
 * **JDK 17** or higher
@@ -109,19 +109,19 @@ To generate distinct APKs optimized per architecture:
 ./gradlew assembleDebug -PsplitApks
 ```
 This produces 3 types of APKs:
-* **Universal APK**: Supports all CPU architectures (ARM & x86).
+* **Universal APK**: Supports all CPU architectures (ARM and x86).
 * **64-bit APK (`arm64-v8a`)**: Optimized for modern Android smartphones (smaller download size).
 * **32-bit APK (`armeabi-v7a`)**: Optimized for legacy Android devices.
 * **x86 / x86_64 APKs**: For emulators and ChromeOS devices.
 
-### 3. Run Unit & Screenshot Tests
+### 3. Run Unit and Screenshot Tests
 ```bash
 ./gradlew :app:testDebugUnitTest
 ```
 
 ---
 
-## 🤖 GitHub Actions CI/CD Workflow
+## GitHub Actions CI/CD Workflow
 
 The repository includes an automated workflow at `.github/workflows/build-apks.yml` that triggers on every commit, tag, or manual dispatch.
 
@@ -137,6 +137,6 @@ The repository includes an automated workflow at `.github/workflows/build-apks.y
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.

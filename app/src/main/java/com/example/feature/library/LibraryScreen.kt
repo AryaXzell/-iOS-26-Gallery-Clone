@@ -1,5 +1,6 @@
 package com.example.feature.library
 
+import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -62,6 +63,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -87,6 +89,7 @@ fun LibraryScreen(
     modifier: Modifier = Modifier
 ) {
     val gridState = rememberLazyGridState()
+    val context = LocalContext.current
     val isScrolled by remember {
         derivedStateOf { gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 20 }
     }
@@ -173,7 +176,27 @@ fun LibraryScreen(
         ) {
             SelectionActionBar(
                 hasSelection = uiState.selectedIds.isNotEmpty(),
-                onShare = { /* Share */ },
+                onShare = {
+                    val selectedMedia = uiState.filteredMedia.filter { uiState.selectedIds.contains(it.id) }
+                    if (selectedMedia.isNotEmpty()) {
+                        val shareIntent = if (selectedMedia.size == 1) {
+                            val single = selectedMedia.first()
+                            Intent(Intent.ACTION_SEND).apply {
+                                type = if (single.isVideo) "video/*" else "image/*"
+                                putExtra(Intent.EXTRA_STREAM, single.uri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                        } else {
+                            Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                                type = "image/*"
+                                val uris = ArrayList(selectedMedia.map { it.uri })
+                                putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Share Media"))
+                    }
+                },
                 onFavorite = { viewModel.favoriteSelected() },
                 onTrash = { viewModel.deleteSelected() },
                 onSelectAll = { viewModel.selectAll() }
@@ -389,24 +412,6 @@ fun FilterSheetContent(
             Text(
                 text = stringResource(R.string.filter_hide_screenshots),
                 style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(start = 12.dp)
-            )
-        }
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp)
-        ) {
-            Checkbox(
-                checked = false,
-                onCheckedChange = null,
-                enabled = false
-            )
-            Text(
-                text = stringResource(R.string.filter_shared_with_you),
-                style = MaterialTheme.typography.bodyMedium.copy(color = Color.Gray),
                 modifier = Modifier.padding(start = 12.dp)
             )
         }
