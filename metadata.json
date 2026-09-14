@@ -1,0 +1,6 @@
+{
+  "name": "Gallery",
+  "description": "Native Android clone of iOS 26 Photos featuring Liquid Glass UI, smart collections, full-screen detail viewer, and non-destructive editor.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

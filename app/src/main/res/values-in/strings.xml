@@ -1,0 +1,83 @@
+<resources>
+    <string name="app_name">Galeri</string>
+    <string name="tab_library">Perpustakaan</string>
+    <string name="tab_collections">Koleksi</string>
+    <string name="tab_search">Cari</string>
+    <string name="search_hint">Cari foto, orang, tempat...</string>
+    <string name="select">Pilih</string>
+    <string name="cancel">Batal</string>
+    <string name="done">Selesai</string>
+    <string name="revert">Kembalikan ke Asli</string>
+    <string name="empty_photos_title">Belum ada foto</string>
+    <string name="empty_photos_subtitle">Foto dan video Anda akan muncul di sini.</string>
+    <string name="add_sample_photos">Muat Galeri Demo</string>
+    
+    <!-- Collections Sections -->
+    <string name="section_recent_days">Hari Terakhir</string>
+    <string name="section_people_pets">Orang &amp; Peliharaan</string>
+    <string name="section_pinned">Koleksi Disematkan</string>
+    <string name="section_memories">Kenangan</string>
+    <string name="section_trips">Perjalanan</string>
+    <string name="section_albums">Album</string>
+    <string name="section_media_types">Jenis Media</string>
+    <string name="section_utilities">Utilitas</string>
+    
+    <!-- Utilities -->
+    <string name="util_favorites">Favorit</string>
+    <string name="util_duplicates">Duplikat</string>
+    <string name="util_hidden">Tersembunyi</string>
+    <string name="util_recently_deleted">Baru Dihapus</string>
+    <string name="util_imports">Impor</string>
+    
+    <!-- Media Types -->
+    <string name="media_videos">Video</string>
+    <string name="media_selfies">Selfie</string>
+    <string name="media_portraits">Potret</string>
+    <string name="media_screenshots">Tangkapan Layar</string>
+    <string name="media_panoramas">Panorama</string>
+
+    <!-- Filters & Settings -->
+    <string name="filter_all">Semua</string>
+    <string name="filter_photos">Foto</string>
+    <string name="filter_videos">Video</string>
+    <string name="filter_edited">Diedit</string>
+    <string name="filter_favorites">Favorit</string>
+    <string name="filter_screenshots">Tangkapan Layar</string>
+    <string name="filter_hide_screenshots">Sembunyikan Tangkapan Layar</string>
+    <string name="filter_only_edited">Tampilkan Hanya yang Diedit</string>
+    <string name="filter_shared_with_you">Dibagikan dengan Anda (Segera hadir)</string>
+    
+    <string name="action_share">Bagikan</string>
+    <string name="action_favorite">Favorit</string>
+    <string name="action_info">Info</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_trash">Hapus</string>
+    <string name="action_add_to_album">Tambah ke Album</string>
+    <string name="selected_count">%1$d Dipilih</string>
+    
+    <!-- Edit Tabs -->
+    <string name="edit_tab_adjust">Sesuaikan</string>
+    <string name="edit_tab_filters">Filter</string>
+    <string name="edit_tab_crop">Potong</string>
+    <string name="edit_tab_markup">Markup</string>
+    <string name="edit_auto">Otomatis</string>
+    <string name="edit_exposure">Pencahayaan</string>
+    <string name="edit_brilliance">Kecemerlangan</string>
+    <string name="edit_highlights">Sorotan</string>
+    <string name="edit_shadows">Bayangan</string>
+    <string name="edit_contrast">Kontras</string>
+    <string name="edit_brightness">Kecerahan</string>
+    <string name="edit_black_point">Titik Hitam</string>
+    <string name="edit_saturation">Saturasi</string>
+    <string name="edit_vibrance">Ketajaman Warna</string>
+    <string name="edit_warmth">Kehangatan</string>
+    <string name="edit_tint">Semburat</string>
+    <string name="edit_bw_toggle">Hitam &amp; Putih</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Pengaturan</string>
+    <string name="setting_reduce_transparency">Kurangi Transparansi</string>
+    <string name="setting_reduce_transparency_desc">Ganti keburaman kaca dengan permukaan solid</string>
+    <string name="setting_reduce_motion">Kurangi Gerakan</string>
+    <string name="setting_reduce_motion_desc">Gunakan fade instan sebagai pengganti animasi spring</string>
+</resources>
