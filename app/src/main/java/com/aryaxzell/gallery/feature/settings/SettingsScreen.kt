@@ -98,7 +98,7 @@ fun SettingsScreen(
             text = "ACCESSIBILITY & DISPLAY",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
             modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
         )
 
@@ -131,7 +131,7 @@ fun SettingsScreen(
                             Text(
                                 text = "Disables Liquid Glass blur for solid surfaces",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
                             )
                         }
                     }
@@ -174,7 +174,7 @@ fun SettingsScreen(
                             Text(
                                 text = "Replaces spring physics with instant transitions",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
                             )
                         }
                     }
@@ -217,7 +217,7 @@ fun SettingsScreen(
                             Text(
                                 text = "Enables real-time backdrop glass blur",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
                             )
                         }
                     }
@@ -244,7 +244,7 @@ fun SettingsScreen(
             text = "ABOUT",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
             modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
         )
 
@@ -262,7 +262,7 @@ fun SettingsScreen(
                 Text(
                     text = "Version 1.0.0 (Liquid Glass Design System)",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }

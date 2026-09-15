@@ -43,19 +43,19 @@ object GlassTokens {
 
     fun tintAlpha(tier: GlassTier, isDark: Boolean): Float = if (isDark) {
         when (tier) {
-            GlassTier.Controls -> 0.38f
-            GlassTier.Standard -> 0.42f
-            GlassTier.Utility -> 0.18f
+            GlassTier.Controls -> 0.78f
+            GlassTier.Standard -> 0.82f
+            GlassTier.Utility -> 0.65f
         }
     } else {
         when (tier) {
-            GlassTier.Controls -> 0.18f
-            GlassTier.Standard -> 0.22f
-            GlassTier.Utility -> 0.10f
+            GlassTier.Controls -> 0.82f
+            GlassTier.Standard -> 0.86f
+            GlassTier.Utility -> 0.70f
         }
     }
 
-    fun edgeHighlightAlpha(isDark: Boolean): Float = if (isDark) 0.15f else 0.30f
+    fun edgeHighlightAlpha(isDark: Boolean): Float = if (isDark) 0.20f else 0.50f
 
     val edgeBorderWidth: Dp = 0.5.dp
 

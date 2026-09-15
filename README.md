@@ -1,6 +1,10 @@
 # Gallery — iOS 26 Photos Native Android Clone
 
+[![GitHub Repository](https://img.shields.io/badge/GitHub-AryaXzell%2F--iOS--26--Gallery--Clone-181717?logo=github)](https://github.com/AryaXzell/-iOS-26-Gallery-Clone)
+
 A native Android clone of the **iOS 26 Photos** application built with **Jetpack Compose**, **Material 3**, **Media3 ExoPlayer**, and a custom **Liquid Glass Design System**.
+
+* **Repository**: [https://github.com/AryaXzell/-iOS-26-Gallery-Clone](https://github.com/AryaXzell/-iOS-26-Gallery-Clone)
 
 ---
 

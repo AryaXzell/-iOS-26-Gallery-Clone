@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -37,9 +38,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aryaxzell.gallery.core.common.LocalGallerySettings
-import com.aryaxzell.gallery.core.designsystem.LocalHazeState
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
 import com.aryaxzell.gallery.core.designsystem.GlassBlobBottomBar
 import com.aryaxzell.gallery.feature.GalleryUiState
 import com.aryaxzell.gallery.feature.GalleryViewModel
@@ -144,25 +142,18 @@ fun GalleryApp(viewModel: GalleryViewModel = viewModel()) {
         }
     }
 
-    val hazeState = remember { HazeState() }
     val settings = uiState.settings
 
     CompositionLocalProvider(
-        LocalGallerySettings provides settings,
-        LocalHazeState provides hazeState
+        LocalGallerySettings provides settings
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .then(
-                    if (settings.liquidGlassEnabled && !settings.reduceTransparency) {
-                        Modifier.haze(hazeState)
-                    } else {
-                        Modifier
-                    }
-                )
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
         ) {
+            Box(
+                modifier = Modifier.fillMaxSize()
+            ) {
             // Screen Switcher
             when (currentRootScreen) {
                 RootScreen.MainTabs -> {
@@ -249,4 +240,5 @@ fun GalleryApp(viewModel: GalleryViewModel = viewModel()) {
             }
         }
     }
+}
 }

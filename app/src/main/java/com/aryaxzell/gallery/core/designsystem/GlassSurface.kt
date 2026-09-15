@@ -58,15 +58,11 @@ import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Precision
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import com.aryaxzell.gallery.core.common.LocalGallerySettings
 import com.aryaxzell.gallery.core.data.EditAdjustments
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeChild
-import dev.chrisbanes.haze.HazeStyle
-import dev.chrisbanes.haze.HazeTint
-
-val LocalHazeState = compositionLocalOf<HazeState?> { null }
 
 @Composable
 fun GlassSurface(
@@ -78,7 +74,6 @@ fun GlassSurface(
 ) {
     val isDark = isSystemInDarkTheme()
     val settings = LocalGallerySettings.current
-    val hazeState = LocalHazeState.current
 
     val baseAlpha = GlassTokens.tintAlpha(tier, isDark)
     val highlightAlpha = GlassTokens.edgeHighlightAlpha(isDark)
@@ -100,34 +95,52 @@ fun GlassSurface(
             color = tint,
             tonalElevation = shadowElevation
         ) {
-            Box(content = content)
+            val contentColor = if (isDark) Color.White else Color(0xFF1C1C1E)
+            CompositionLocalProvider(LocalContentColor provides contentColor) {
+                Box(content = content)
+            }
         }
     } else {
         val effectiveAlpha = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             baseAlpha
         } else {
-            (baseAlpha + 0.12f).coerceAtMost(0.85f)
+            (baseAlpha + 0.05f).coerceAtMost(0.95f)
         }
 
-        val backgroundGradient = remember(tint, effectiveAlpha) {
-            Brush.verticalGradient(
-                colors = listOf(
-                    tint.copy(alpha = (effectiveAlpha + 0.08f).coerceAtMost(0.95f)),
-                    tint.copy(alpha = effectiveAlpha)
+        val backgroundGradient = remember(tint, effectiveAlpha, settings.liquidGlassEnabled, isDark) {
+            if (settings.liquidGlassEnabled) {
+                Brush.verticalGradient(
+                    colors = listOf(
+                        tint.copy(alpha = (effectiveAlpha + 0.06f).coerceAtMost(0.98f)),
+                        tint.copy(alpha = effectiveAlpha),
+                        tint.copy(alpha = (effectiveAlpha - 0.04f).coerceAtLeast(0.65f))
+                    )
                 )
+            } else {
+                Brush.verticalGradient(
+                    colors = listOf(
+                        tint.copy(alpha = (effectiveAlpha + 0.04f).coerceAtMost(0.98f)),
+                        tint.copy(alpha = effectiveAlpha)
+                    )
+                )
+            }
+        }
+
+        val borderBrush = remember(highlightAlpha, isDark, settings.liquidGlassEnabled) {
+            Brush.verticalGradient(
+                colors = if (isDark) {
+                    listOf(
+                        Color.White.copy(alpha = if (settings.liquidGlassEnabled) 0.28f else 0.16f),
+                        Color.White.copy(alpha = if (settings.liquidGlassEnabled) 0.08f else 0.04f)
+                    )
+                } else {
+                    listOf(
+                        Color.White.copy(alpha = if (settings.liquidGlassEnabled) 0.85f else 0.65f),
+                        Color.Black.copy(alpha = if (settings.liquidGlassEnabled) 0.08f else 0.05f)
+                    )
+                }
             )
         }
-
-        val borderBrush = remember(highlightAlpha) {
-            Brush.verticalGradient(
-                colors = listOf(
-                    Color.White.copy(alpha = highlightAlpha),
-                    Color.White.copy(alpha = highlightAlpha * 0.35f)
-                )
-            )
-        }
-
-        val hasHaze = settings.liquidGlassEnabled && hazeState != null
 
         // Liquid Glass Surface with spec-exact tint, blur, specular rim highlight, and depth
         Box(
@@ -135,28 +148,12 @@ fun GlassSurface(
                 .then(
                     if (shadowElevation > 0.dp) {
                         Modifier.shadow(
-                            elevation = shadowElevation,
+                            elevation = if (settings.liquidGlassEnabled) shadowElevation + 2.dp else shadowElevation,
                             shape = shape,
                             ambientColor = ambientShadowColor,
                             spotColor = spotShadowColor
                         )
                     } else Modifier
-                )
-                .then(
-                    if (hasHaze) {
-                        Modifier.hazeChild(
-                            state = hazeState,
-                            shape = shape,
-                            style = HazeStyle(
-                                backgroundColor = tint,
-                                tints = emptyList(),
-                                blurRadius = blurRadius,
-                                noiseFactor = 0.15f
-                            )
-                        )
-                    } else {
-                        Modifier
-                    }
                 )
                 .clip(shape)
                 .border(
@@ -165,31 +162,44 @@ fun GlassSurface(
                     shape = shape
                 )
         ) {
-            if (!hasHaze) {
-                // Background Liquid Glass layer with real blur render effect when haze is not available
+            // Background Liquid Glass layer with real blur render effect
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .then(
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            Modifier.blur(if (settings.liquidGlassEnabled) blurRadius else blurRadius / 2)
+                        } else {
+                            Modifier
+                        }
+                    )
+                    .background(backgroundGradient)
+            )
+
+            // Specular gleam when liquid glass is enabled (curved glass refraction highlight)
+            if (settings.liquidGlassEnabled) {
                 Box(
                     modifier = Modifier
                         .matchParentSize()
-                        .then(
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                Modifier.blur(blurRadius)
-                            } else {
-                                Modifier
-                            }
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    if (isDark) Color.White.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.25f),
+                                    Color.Transparent,
+                                    Color.Transparent
+                                ),
+                                start = Offset(0f, 0f),
+                                end = Offset(300f, 300f)
+                            )
                         )
-                        .background(backgroundGradient)
-                )
-            } else {
-                // Background overlay tint on top of haze blur for spec consistency
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(tint.copy(alpha = baseAlpha))
                 )
             }
 
-            Box(modifier = Modifier.fillMaxSize()) {
-                content()
+            val contentColor = if (isDark) Color.White else Color(0xFF1C1C1E)
+            CompositionLocalProvider(LocalContentColor provides contentColor) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    content()
+                }
             }
         }
     }
