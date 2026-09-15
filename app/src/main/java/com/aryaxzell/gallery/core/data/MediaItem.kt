@@ -216,7 +216,11 @@ data class MediaItem(
     val fileSize: String = "4.2 MB",
     val categoryTag: String = "Nature",
     val tripName: String? = null,
-    val personOrPetName: String? = null
+    val personOrPetName: String? = null,
+    val belongsToPeople: Boolean = false,
+    val belongsToPlaces: Boolean = false,
+    val belongsToPets: Boolean = false,
+    val mlLabels: List<String> = emptyList()
 ) {
     val durationMs: Long
         get() = duration

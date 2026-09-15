@@ -98,4 +98,14 @@ interface GalleryDao {
 
     @Query("DELETE FROM search_history")
     suspend fun clearSearchHistory()
+
+    // ML Classification
+    @Query("SELECT * FROM media_ml_classification")
+    fun getAllClassifications(): Flow<List<MediaMlClassificationEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertClassification(classification: MediaMlClassificationEntity)
+
+    @Query("SELECT * FROM media_ml_classification WHERE mediaId = :mediaId")
+    suspend fun getClassification(mediaId: Long): MediaMlClassificationEntity?
 }

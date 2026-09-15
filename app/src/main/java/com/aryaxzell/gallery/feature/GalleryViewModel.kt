@@ -250,12 +250,39 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
             _isLoading.value = true
             repository.loadMedia()
             _isLoading.value = false
+            launch {
+                try {
+                    repository.runAutoClassification()
+                } catch (e: Exception) {
+                    android.util.Log.e("GalleryViewModel", "Failed to run background classification", e)
+                }
+            }
         }
     }
 
     fun loadDemoGallery() {
         viewModelScope.launch {
             repository.loadCuratedDemo()
+            launch {
+                try {
+                    repository.runAutoClassification()
+                } catch (e: Exception) {
+                    android.util.Log.e("GalleryViewModel", "Failed to run background classification", e)
+                }
+            }
+        }
+    }
+
+    fun triggerAutoClassification() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                repository.runAutoClassification()
+            } catch (e: Exception) {
+                android.util.Log.e("GalleryViewModel", "Failed manual classification", e)
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 

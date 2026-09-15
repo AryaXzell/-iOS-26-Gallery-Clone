@@ -13,10 +13,18 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,6 +62,8 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -67,6 +77,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.foundation.layout.BoxWithConstraints
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -174,113 +185,248 @@ fun PhotoDetailScreen(
     }
 
     var isZoomed by remember { mutableStateOf(false) }
+    var dragOffsetY by remember { mutableFloatStateOf(0f) }
+    val coroutineScope = rememberCoroutineScope()
+
+    val backgroundAlpha = (1f - (kotlin.math.abs(dragOffsetY) / 800f)).coerceIn(0f, 1f)
+    val toolbarAlpha = (1f - (kotlin.math.abs(dragOffsetY) / 300f)).coerceIn(0f, 1f)
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(Color.Black.copy(alpha = backgroundAlpha))
             .testTag("photo_detail_screen")
     ) {
         // Fullscreen Horizontal Pager
         HorizontalPager(
             state = pagerState,
-            userScrollEnabled = !isZoomed,
+            userScrollEnabled = !isZoomed && dragOffsetY == 0f,
             modifier = Modifier.fillMaxSize()
         ) { page ->
             val item = items.getOrNull(page) ?: return@HorizontalPager
 
-            if (item.isVideo) {
-                // Video Player with iOS 26 overlay controls
-                IOSVideoPlayer(
-                    item = item,
-                    isActivePage = (pagerState.currentPage == page),
-                    showControls = showToolbars,
-                    onToggleControls = { showToolbars = !showToolbars }
-                )
+            val dismissScale = if (pagerState.currentPage == page) {
+                (1f - (kotlin.math.abs(dragOffsetY) / 2500f)).coerceIn(0.85f, 1f)
             } else {
-                // Photo Viewer with zoom, pan, and spatial tilt
-                var scale by remember(page) { mutableFloatStateOf(1f) }
-                var offset by remember(page) { mutableStateOf(Offset.Zero) }
+                1f
+            }
 
-                LaunchedEffect(scale, pagerState.currentPage) {
-                    isZoomed = (pagerState.currentPage == page) && (scale > 1.05f)
-                }
-
-                val transformState = rememberTransformableState { zoomChange, panChange, _ ->
-                    scale = (scale * zoomChange).coerceIn(1f, 4f)
-                    if (scale > 1.05f) {
-                        val maxOffsetLimit = 400f * (scale - 1f)
-                        offset = Offset(
-                            x = (offset.x + panChange.x).coerceIn(-maxOffsetLimit, maxOffsetLimit),
-                            y = (offset.y + panChange.y).coerceIn(-maxOffsetLimit, maxOffsetLimit)
-                        )
-                    } else {
-                        offset = Offset.Zero
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        if (pagerState.currentPage == page) {
+                            translationY = dragOffsetY
+                            scaleX = dismissScale
+                            scaleY = dismissScale
+                        }
                     }
-                }
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onTap = { showToolbars = !showToolbars },
-                                onDoubleTap = {
-                                    if (scale > 1.2f) {
-                                        scale = 1f
-                                        offset = Offset.Zero
-                                    } else {
-                                        scale = 2.5f
-                                        offset = Offset.Zero
+                    .draggable(
+                        orientation = Orientation.Vertical,
+                        enabled = !isZoomed,
+                        state = rememberDraggableState { delta ->
+                            if (pagerState.currentPage == page) {
+                                dragOffsetY += delta
+                            }
+                        },
+                        onDragStopped = { velocity ->
+                            if (pagerState.currentPage == page) {
+                                if (kotlin.math.abs(dragOffsetY) > 180f || kotlin.math.abs(velocity) > 800f) {
+                                    coroutineScope.launch {
+                                        val target = if (dragOffsetY > 0) 1200f else -1200f
+                                        animate(
+                                            initialValue = dragOffsetY,
+                                            targetValue = target,
+                                            animationSpec = spring(stiffness = Spring.StiffnessMedium)
+                                        ) { value, _ ->
+                                            dragOffsetY = value
+                                        }
+                                        onBack()
+                                    }
+                                } else {
+                                    coroutineScope.launch {
+                                        animate(
+                                            initialValue = dragOffsetY,
+                                            targetValue = 0f,
+                                            animationSpec = spring(
+                                                dampingRatio = Spring.DampingRatioLowBouncy,
+                                                stiffness = Spring.StiffnessMedium
+                                            )
+                                        ) { value, _ ->
+                                            dragOffsetY = value
+                                        }
                                     }
                                 }
-                            )
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    val detailImageRequest = remember(item.uri, context) {
-                        ImageRequest.Builder(context)
-                            .data(item.uri)
-                            .crossfade(true)
-                            .memoryCachePolicy(CachePolicy.ENABLED)
-                            .diskCachePolicy(CachePolicy.ENABLED)
-                            .size(1920, 1920)
-                            .precision(Precision.INEXACT)
-                            .allowRgb565(true)
-                            .build()
+                            }
+                        }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (item.isVideo) {
+                    // Video Player with iOS 26 overlay controls
+                    IOSVideoPlayer(
+                        item = item,
+                        isActivePage = (pagerState.currentPage == page),
+                        showControls = showToolbars,
+                        onToggleControls = { showToolbars = !showToolbars }
+                    )
+                } else {
+                    // Photo Viewer with zoom, pan, and spatial tilt
+                    var scale by remember(page) { mutableFloatStateOf(1f) }
+                    var offset by remember(page) { mutableStateOf(Offset.Zero) }
+
+                    LaunchedEffect(scale, pagerState.currentPage) {
+                        isZoomed = (pagerState.currentPage == page) && (scale > 1.05f)
                     }
 
-                    val detailRatioValue = remember(item.editAdjustments.cropAspectRatio) {
-                        when (item.editAdjustments.cropAspectRatio) {
-                            "Square" -> 1f
-                            "16:9" -> 16f / 9f
-                            "9:16" -> 9f / 16f
-                            "4:3" -> 4f / 3f
-                            "3:2" -> 3f / 2f
-                            else -> null
+                    // Reset page states on selection change
+                    LaunchedEffect(pagerState.currentPage) {
+                        if (pagerState.currentPage != page) {
+                            scale = 1f
+                            offset = Offset.Zero
+                            dragOffsetY = 0f
                         }
                     }
 
-                    AsyncImage(
-                        model = detailImageRequest,
-                        contentDescription = item.title,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .then(
-                                if (detailRatioValue != null) Modifier.aspectRatio(detailRatioValue).clip(RoundedCornerShape(8.dp))
-                                else Modifier
+                    BoxWithConstraints(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val maxWidthPx = constraints.maxWidth.toFloat()
+                        val maxHeightPx = constraints.maxHeight.toFloat()
+
+                        val transformState = rememberTransformableState { zoomChange, panChange, _ ->
+                            scale = (scale * zoomChange).coerceIn(1f, 4f)
+                            if (scale > 1.05f) {
+                                val maxOffsetX = (maxWidthPx * (scale - 1f) / 2f).coerceAtLeast(0f)
+                                val maxOffsetY = (maxHeightPx * (scale - 1f) / 2f).coerceAtLeast(0f)
+                                offset = Offset(
+                                    x = (offset.x + panChange.x).coerceIn(-maxOffsetX, maxOffsetX),
+                                    y = (offset.y + panChange.y).coerceIn(-maxOffsetY, maxOffsetY)
+                                )
+                            } else {
+                                offset = Offset.Zero
+                            }
+                        }
+
+                        val detailImageRequest = remember(item.uri, context) {
+                            ImageRequest.Builder(context)
+                                .data(item.uri)
+                                .crossfade(true)
+                                .memoryCachePolicy(CachePolicy.ENABLED)
+                                .diskCachePolicy(CachePolicy.ENABLED)
+                                .size(1920, 1920)
+                                .precision(Precision.INEXACT)
+                                .allowRgb565(true)
+                                .build()
+                        }
+
+                        val detailRatioValue = remember(item.editAdjustments.cropAspectRatio) {
+                            when (item.editAdjustments.cropAspectRatio) {
+                                "Square" -> 1f
+                                "16:9" -> 16f / 9f
+                                "9:16" -> 9f / 16f
+                                "4:3" -> 4f / 3f
+                                "3:2" -> 3f / 2f
+                                else -> null
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .pointerInput(scale) {
+                                    detectTapGestures(
+                                        onTap = { showToolbars = !showToolbars },
+                                        onDoubleTap = { tapOffset ->
+                                            val targetScale = if (scale > 1.2f) 1f else 2.5f
+                                            
+                                            // Center zoom around the double-tap location relative to image center
+                                            val centerX = maxWidthPx / 2f
+                                            val centerY = maxHeightPx / 2f
+                                            val dx = (centerX - tapOffset.x) * (targetScale - 1f)
+                                            val dy = (centerY - tapOffset.y) * (targetScale - 1f)
+                                            
+                                            val maxOffsetX = (maxWidthPx * (targetScale - 1f) / 2f).coerceAtLeast(0f)
+                                            val maxOffsetY = (maxHeightPx * (targetScale - 1f) / 2f).coerceAtLeast(0f)
+                                            val targetOffset = Offset(
+                                                x = dx.coerceIn(-maxOffsetX, maxOffsetX),
+                                                y = dy.coerceIn(-maxOffsetY, maxOffsetY)
+                                            )
+
+                                            coroutineScope.launch {
+                                                launch {
+                                                    animate(
+                                                        initialValue = scale,
+                                                        targetValue = targetScale,
+                                                        animationSpec = spring(stiffness = Spring.StiffnessMedium)
+                                                    ) { value, _ ->
+                                                        scale = value
+                                                    }
+                                                }
+                                                launch {
+                                                    animate(
+                                                        initialValue = offset.x,
+                                                        targetValue = if (targetScale > 1f) targetOffset.x else 0f,
+                                                        animationSpec = spring(stiffness = Spring.StiffnessMedium)
+                                                    ) { value, _ ->
+                                                        offset = offset.copy(x = value)
+                                                    }
+                                                }
+                                                launch {
+                                                    animate(
+                                                        initialValue = offset.y,
+                                                        targetValue = if (targetScale > 1f) targetOffset.y else 0f,
+                                                        animationSpec = spring(stiffness = Spring.StiffnessMedium)
+                                                    ) { value, _ ->
+                                                        offset = offset.copy(y = value)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+                                .then(
+                                    if (scale > 1.05f) {
+                                        Modifier.pointerInput(scale) {
+                                            detectDragGestures { change, dragAmount ->
+                                                change.consume()
+                                                val maxOffsetX = (maxWidthPx * (scale - 1f) / 2f).coerceAtLeast(0f)
+                                                val maxOffsetY = (maxHeightPx * (scale - 1f) / 2f).coerceAtLeast(0f)
+                                                offset = Offset(
+                                                    x = (offset.x + dragAmount.x).coerceIn(-maxOffsetX, maxOffsetX),
+                                                    y = (offset.y + dragAmount.y).coerceIn(-maxOffsetY, maxOffsetY)
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        Modifier
+                                    }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            AsyncImage(
+                                model = detailImageRequest,
+                                contentDescription = item.title,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .then(
+                                        if (detailRatioValue != null) Modifier.aspectRatio(detailRatioValue).clip(RoundedCornerShape(8.dp))
+                                        else Modifier
+                                    )
+                                    .transformable(state = transformState)
+                                    .graphicsLayer {
+                                        scaleX = scale * if (item.isEdited && item.editAdjustments.isFlippedHorizontal) -1f else 1f
+                                        scaleY = scale
+                                        rotationZ = if (item.isEdited) item.editAdjustments.rotationDegrees else 0f
+                                        translationX = offset.x + tiltX
+                                        translationY = offset.y + tiltY
+                                    },
+                                colorFilter = if (item.isEdited) ColorFilter.colorMatrix(item.editAdjustments.toColorMatrix()) else null
                             )
-                            .transformable(state = transformState)
-                            .graphicsLayer {
-                                scaleX = scale * if (item.isEdited && item.editAdjustments.isFlippedHorizontal) -1f else 1f
-                                scaleY = scale
-                                rotationZ = if (item.isEdited) item.editAdjustments.rotationDegrees else 0f
-                                translationX = offset.x + tiltX
-                                translationY = offset.y + tiltY
-                            },
-                        colorFilter = if (item.isEdited) ColorFilter.colorMatrix(item.editAdjustments.toColorMatrix()) else null
-                    )
+                        }
+                    }
                 }
             }
         }
@@ -294,6 +440,7 @@ fun PhotoDetailScreen(
                 .align(Alignment.TopCenter)
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
+                .graphicsLayer { alpha = toolbarAlpha }
         ) {
             val activeItem = items.getOrNull(pagerState.currentPage) ?: currentItem
             GlassSurface(
@@ -367,6 +514,7 @@ fun PhotoDetailScreen(
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
                 .padding(horizontal = 24.dp, vertical = 16.dp)
+                .graphicsLayer { alpha = toolbarAlpha }
         ) {
             val activeItem = items.getOrNull(pagerState.currentPage) ?: currentItem
 
@@ -793,6 +941,7 @@ fun IOSVideoPlayer(
     }
 }
 
+@kotlin.OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun PhotoInfoSheet(item: MediaItem) {
     val context = LocalContext.current
@@ -851,6 +1000,56 @@ fun PhotoInfoSheet(item: MediaItem) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
                     )
+                }
+            }
+        }
+
+        if (item.mlLabels.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(14.dp))
+            GlassSurface(
+                tier = GlassTier.Controls,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = Color(0xFF9F7AEA),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "On-Device AI Smart Labels",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    
+                    androidx.compose.foundation.layout.FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        item.mlLabels.forEach { label ->
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFF9F7AEA).copy(alpha = 0.12f))
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF9F7AEA),
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

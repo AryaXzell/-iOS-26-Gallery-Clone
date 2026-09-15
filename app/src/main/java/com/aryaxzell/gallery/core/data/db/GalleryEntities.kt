@@ -39,3 +39,13 @@ data class AlbumMediaCrossRef(
     val mediaId: Long,
     val addedAt: Long = System.currentTimeMillis()
 )
+
+@Entity(tableName = "media_ml_classification")
+data class MediaMlClassificationEntity(
+    @PrimaryKey val mediaId: Long,
+    val labelsJson: String,
+    val belongsToPeople: Boolean,
+    val belongsToPlaces: Boolean,
+    val belongsToPets: Boolean,
+    val lastClassifiedAt: Long = System.currentTimeMillis()
+)

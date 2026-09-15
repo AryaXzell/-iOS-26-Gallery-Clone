@@ -138,6 +138,7 @@ dependencies {
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.haze)
   implementation(libs.androidx.core.splashscreen)
+  implementation(libs.mlkit.image.labeling)
 
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)

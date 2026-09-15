@@ -114,6 +114,12 @@ fun CollectionsScreen(
         uiState.allMedia.filter { it.isFavorite }
     }
 
+    val peoplePhotos = remember(uiState.allMedia) { uiState.allMedia.filter { it.belongsToPeople } }
+    val placesPhotos = remember(uiState.allMedia) { uiState.allMedia.filter { it.belongsToPlaces } }
+    val petsPhotos = remember(uiState.allMedia) { uiState.allMedia.filter { it.belongsToPets } }
+    val totalMediaCount = uiState.allMedia.size
+    val classifiedCount = remember(uiState.allMedia) { uiState.allMedia.count { it.mlLabels.isNotEmpty() } }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -172,6 +178,80 @@ fun CollectionsScreen(
                             }
                         )
                     }
+                }
+            }
+        }
+
+        // On-Device AI Smart Albums
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Smart Albums",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "On-device AI • Classified $classifiedCount of $totalMediaCount items",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+                TextButton(
+                    onClick = { viewModel.triggerAutoClassification() },
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF007AFF))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = "Scan Now",
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Re-scan", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(bottom = 20.dp)
+            ) {
+                item {
+                    SmartAlbumCard(
+                        title = "People",
+                        icon = Icons.Default.Person,
+                        iconTint = Color(0xFF9F7AEA),
+                        count = peoplePhotos.size,
+                        coverUri = peoplePhotos.firstOrNull()?.uri,
+                        onClick = { viewModel.openAlbumDetail("People", peoplePhotos) }
+                    )
+                }
+                item {
+                    SmartAlbumCard(
+                        title = "Places",
+                        icon = Icons.Default.Landscape,
+                        iconTint = Color(0xFF38A169),
+                        count = placesPhotos.size,
+                        coverUri = placesPhotos.firstOrNull()?.uri,
+                        onClick = { viewModel.openAlbumDetail("Places", placesPhotos) }
+                    )
+                }
+                item {
+                    SmartAlbumCard(
+                        title = "Pets",
+                        icon = Icons.Default.Pets,
+                        iconTint = Color(0xFFED8936),
+                        count = petsPhotos.size,
+                        coverUri = petsPhotos.firstOrNull()?.uri,
+                        onClick = { viewModel.openAlbumDetail("Pets", petsPhotos) }
+                    )
                 }
             }
         }
@@ -960,6 +1040,105 @@ fun MediaCategoryRow(
                 tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.50f),
                 modifier = Modifier.size(14.dp)
             )
+        }
+    }
+}
+
+@Composable
+fun SmartAlbumCard(
+    title: String,
+    icon: ImageVector,
+    iconTint: Color,
+    count: Int,
+    coverUri: Any?,
+    onClick: () -> Unit
+) {
+    val context = LocalContext.current
+
+    GlassSurface(
+        tier = GlassTier.Controls,
+        shape = RoundedCornerShape(18.dp),
+        modifier = Modifier
+            .width(140.dp)
+            .height(180.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .clickable { onClick() }
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (coverUri != null) {
+                val mediaTypeImageRequest = remember(coverUri, context) {
+                    ImageRequest.Builder(context)
+                        .data(coverUri)
+                        .crossfade(true)
+                        .memoryCachePolicy(CachePolicy.ENABLED)
+                        .diskCachePolicy(CachePolicy.ENABLED)
+                        .size(300, 400)
+                        .precision(Precision.INEXACT)
+                        .build()
+                }
+                AsyncImage(
+                    model = mediaTypeImageRequest,
+                    contentDescription = title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                            )
+                        )
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.surfaceVariant,
+                                    MaterialTheme.colorScheme.surface
+                                )
+                            )
+                        )
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = title,
+                        tint = iconTint,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Column {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (coverUri != null) Color.White else MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "$count items",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (coverUri != null) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    )
+                }
+            }
         }
     }
 }

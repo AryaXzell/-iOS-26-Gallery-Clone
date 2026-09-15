@@ -9,6 +9,8 @@ import com.aryaxzell.gallery.core.data.db.AlbumMediaCrossRef
 import com.aryaxzell.gallery.core.data.db.GalleryDao
 import com.aryaxzell.gallery.core.data.db.MediaMetadataEntity
 import com.aryaxzell.gallery.core.data.db.SearchHistoryEntity
+import com.aryaxzell.gallery.core.data.db.MediaMlClassificationEntity
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,14 +33,17 @@ class MediaRepository(
     val albumsFlow: Flow<List<AlbumEntity>> = dao.getAllAlbums()
     val recentSearchesFlow: Flow<List<SearchHistoryEntity>> = dao.getRecentSearches()
     val albumCrossRefsFlow: Flow<List<AlbumMediaCrossRef>> = dao.getAllAlbumMediaCrossRefs()
+    val classificationsFlow: Flow<List<MediaMlClassificationEntity>> = dao.getAllClassifications()
 
     // Combined live media items merging MediaStore/Demo, Room custom metadata, and custom album memberships
     private val enrichedMediaItems: Flow<List<MediaItem>> = combine(
         _rawMediaItems,
         metadataFlow,
-        albumCrossRefsFlow
-    ) { items, metadataList, crossRefs ->
+        albumCrossRefsFlow,
+        classificationsFlow
+    ) { items, metadataList, crossRefs, classifications ->
         val metadataMap = metadataList.associateBy { it.mediaId }
+        val classMap = classifications.associateBy { it.mediaId }
         val albumMap = mutableMapOf<Long, MutableSet<String>>()
         for (ref in crossRefs) {
             albumMap.getOrPut(ref.mediaId) { mutableSetOf() }.add(ref.albumId)
@@ -46,8 +51,19 @@ class MediaRepository(
 
         items.map { item ->
             val meta = metadataMap[item.id]
+            val clazz = classMap[item.id]
             val customAlbums = albumMap[item.id] ?: emptySet()
-            if (meta != null) {
+            
+            val labels = clazz?.let {
+                try {
+                    val array = org.json.JSONArray(it.labelsJson)
+                    List(array.length()) { idx -> array.getString(idx) }
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            } ?: emptyList()
+
+            val baseItem = if (meta != null) {
                 item.copy(
                     isFavorite = meta.isFavorite,
                     isHidden = meta.isHidden,
@@ -59,6 +75,26 @@ class MediaRepository(
                 )
             } else {
                 item.copy(customAlbumIds = customAlbums)
+            }
+
+            if (clazz != null) {
+                baseItem.copy(
+                    belongsToPeople = clazz.belongsToPeople,
+                    belongsToPlaces = clazz.belongsToPlaces,
+                    belongsToPets = clazz.belongsToPets,
+                    mlLabels = labels
+                )
+            } else {
+                val defaultPeople = item.personOrPetName != null && item.id != 1003L
+                val defaultPets = item.categoryTag == "Pets" || item.id == 1003L
+                val defaultPlaces = item.categoryTag == "Nature" || item.categoryTag == "Architecture" || item.id == 1001L
+
+                baseItem.copy(
+                    belongsToPeople = defaultPeople,
+                    belongsToPets = defaultPets,
+                    belongsToPlaces = defaultPlaces,
+                    mlLabels = if (defaultPeople) listOf("portrait", "person") else if (defaultPets) listOf("dog", "retriever", "animal") else if (defaultPlaces) listOf("nature", "mountain", "scenic") else emptyList()
+                )
             }
         }
     }
@@ -339,6 +375,27 @@ class MediaRepository(
 
     fun loadCuratedDemo() {
         _rawMediaItems.value = getCuratedDemoMedia()
+    }
+
+    suspend fun runAutoClassification() = withContext(Dispatchers.IO) {
+        val currentItems = _rawMediaItems.value
+        for (item in currentItems) {
+            val existing = dao.getClassification(item.id)
+            if (existing == null) {
+                Log.d("MediaRepository", "Auto-classifying item: ${item.id} - ${item.title}")
+                val res = com.aryaxzell.gallery.core.util.MediaClassifier.classify(context, item)
+                val labelsJson = org.json.JSONArray(res.labels).toString()
+                dao.upsertClassification(
+                    com.aryaxzell.gallery.core.data.db.MediaMlClassificationEntity(
+                        mediaId = item.id,
+                        labelsJson = labelsJson,
+                        belongsToPeople = res.belongsToPeople,
+                        belongsToPlaces = res.belongsToPlaces,
+                        belongsToPets = res.belongsToPets
+                    )
+                )
+            }
+        }
     }
 
     companion object {
