@@ -19,7 +19,7 @@ A native Android clone of the **iOS 26 Photos** application built with **Jetpack
 ### Core Application Modules
 
 ```
-com.example/
+com.aryaxzell.gallery/
 ├── MainActivity.kt                  # Root screen switcher and system navigation
 ├── core/
 │   ├── common/                      # CompositionLocal settings and theme utilities
@@ -69,7 +69,7 @@ com.example/
 5. **Non-Destructive Photo Editor**:
    - **Adjust**: Exposure, Brilliance, Highlights, Contrast, Brightness, Saturation, Warmth.
    - **Filters**: Original, Vivid, Dramatic, Mono, Silvertone, Noir with intensity tuning.
-   - **Crop**: 90° rotation and horizontal flip.
+   - **Transform**: 90° rotation, horizontal flip, and selectable crop aspect ratios (Original, Square, 16:9, 4:3, 3:2).
    - **Markup**: Freehand drawing canvas with color palette and undo.
    - Touch-and-hold canvas to compare against original.
 
@@ -134,6 +134,17 @@ The repository includes an automated workflow at `.github/workflows/build-apks.y
    * `Gallery-32bit-arm-APK`: 32-bit ARM APK (`armeabi-v7a`).
    * `Gallery-All-Architectures-APKs`: Complete package of all split builds.
 4. **GitHub Releases Integration**: Automatically creates a GitHub Release when pushing a version tag (e.g. `v1.0.0`) and attaches all 3 APK variants.
+
+### Configuring Release Signing Secrets
+To successfully build and sign release APKs on version tag pushes, you must configure the following **GitHub Actions Secrets** in your repository settings (**Settings > Secrets and variables > Actions**):
+
+* **`RELEASE_KEYSTORE_BASE64`**: The base64-encoded string of your release `.jks` keystore file.
+  * To generate this on macOS/Linux: `base64 -i my-upload-key.jks | tr -d '\n'`
+  * To generate on Windows (PowerShell): `[Convert]::ToBase64String([IO.File]::ReadAllBytes("my-upload-key.jks"))`
+* **`KEYSTORE_PASSWORD`**: The store password configured for your release keystore.
+* **`KEY_PASSWORD`**: The key password configured for the private key in the release keystore.
+
+When these secrets are set, the workflow will automatically decode the keystore and pass the credentials to Gradle during release builds, ensuring signed split and universal APKs are created and attached to the GitHub Release. If these secrets are not configured, the workflow will fallback gracefully or fail standard signing validation on release builds.
 
 ---
 

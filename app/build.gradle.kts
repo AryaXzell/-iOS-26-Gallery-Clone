@@ -1,4 +1,5 @@
-import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.io.BufferedReader
+import java.io.InputStreamReader
 
 plugins {
   alias(libs.plugins.android.application)
@@ -6,11 +7,34 @@ plugins {
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
   alias(libs.plugins.secrets)
-  alias(libs.plugins.google.services)
+}
+
+fun getGitCommitSha(): String {
+    return try {
+        val headFile = file("${rootDir}/.git/HEAD")
+        if (headFile.exists()) {
+            val headText = headFile.readText().trim()
+            if (headText.startsWith("ref:")) {
+                val refPath = headText.substring(4).trim()
+                val refFile = file("${rootDir}/.git/$refPath")
+                if (refFile.exists()) {
+                    refFile.readText().trim().take(7)
+                } else {
+                    "unknown"
+                }
+            } else {
+                headText.take(7)
+            }
+        } else {
+            "unknown"
+        }
+    } catch (e: Exception) {
+        "unknown"
+    }
 }
 
 android {
-  namespace = "com.example"
+  namespace = "com.aryaxzell.gallery"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
@@ -21,6 +45,9 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    buildConfigField("Long", "BUILD_TIME", "${System.currentTimeMillis()}L")
+    buildConfigField("String", "COMMIT_SHA", "\"${getGitCommitSha()}\"")
   }
 
   signingConfigs {
@@ -36,7 +63,7 @@ android {
   buildTypes {
     release {
       isCrunchPngs = false
-      isMinifyEnabled = false
+      isMinifyEnabled = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
@@ -75,8 +102,6 @@ secrets {
   ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")
 }
 
-googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }
-
 dependencies {
   implementation(platform(libs.androidx.compose.bom))
   implementation(libs.androidx.activity.compose)
@@ -93,11 +118,14 @@ dependencies {
   implementation(libs.androidx.navigation.compose)
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
+  implementation(libs.androidx.datastore.preferences)
   implementation(libs.coil.compose)
   implementation(libs.androidx.media3.exoplayer)
   implementation(libs.androidx.media3.ui)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
+  implementation(libs.haze)
+  implementation(libs.androidx.core.splashscreen)
 
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)

@@ -58,7 +58,7 @@
     <!-- Edit Tabs -->
     <string name="edit_tab_adjust">Sesuaikan</string>
     <string name="edit_tab_filters">Filter</string>
-    <string name="edit_tab_crop">Potong</string>
+    <string name="edit_tab_crop">Transformasi</string>
     <string name="edit_tab_markup">Markup</string>
     <string name="edit_auto">Otomatis</string>
     <string name="edit_exposure">Pencahayaan</string>

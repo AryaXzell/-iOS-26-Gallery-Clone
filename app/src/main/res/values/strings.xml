@@ -58,7 +58,7 @@
     <!-- Edit Tabs -->
     <string name="edit_tab_adjust">Adjust</string>
     <string name="edit_tab_filters">Filters</string>
-    <string name="edit_tab_crop">Crop</string>
+    <string name="edit_tab_crop">Transform</string>
     <string name="edit_tab_markup">Markup</string>
     <string name="edit_auto">Auto</string>
     <string name="edit_exposure">Exposure</string>
