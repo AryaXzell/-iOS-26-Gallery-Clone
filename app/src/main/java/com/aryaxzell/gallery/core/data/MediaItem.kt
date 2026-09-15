@@ -35,56 +35,82 @@ data class EditAdjustments(
         val matrix = ColorMatrix()
         if (!isModified) return matrix
 
-        var baseSat = (saturation + 100f) / 100f
-        var baseContrast = (contrast + 100f) / 100f
-        var expFactor = 1f + (exposure / 100f)
-
+        // 1. Saturation calculation (-1f to +1f -> 0x to 2.0x)
+        var sat = 1f + saturation.coerceIn(-1f, 1f)
         if (autoEnhanced) {
-            expFactor *= 1.08f
-            baseContrast *= 1.1f
-            baseSat *= 1.12f
+            sat *= 1.15f
         }
 
+        // 2. Contrast calculation (-1f to +1f -> 0.25x to 1.75x)
+        var c = 1f + (contrast.coerceIn(-1f, 1f) * 0.75f)
+        if (autoEnhanced) {
+            c *= 1.12f
+        }
+
+        // 3. Exposure factor (scaling RGB channels)
+        var expFactor = 1f + (exposure.coerceIn(-1f, 1f) * 0.75f)
+        if (autoEnhanced) {
+            expFactor *= 1.08f
+        }
+
+        // 4. Filters calculation with intensity
         when (filterName) {
             "Vivid" -> {
-                baseSat *= (1f + 0.35f * filterIntensity)
-                baseContrast *= (1f + 0.15f * filterIntensity)
+                sat *= (1f + 0.55f * filterIntensity)
+                c *= (1f + 0.20f * filterIntensity)
             }
             "Dramatic" -> {
-                baseContrast *= (1f + 0.35f * filterIntensity)
-                baseSat *= (1f - 0.2f * filterIntensity)
+                c *= (1f + 0.45f * filterIntensity)
+                sat *= (1f - 0.25f * filterIntensity).coerceAtLeast(0f)
             }
             "Mono" -> {
-                baseSat = 0f
+                sat = (1f - filterIntensity).coerceAtLeast(0f)
             }
             "Silvertone" -> {
-                baseSat = 0f
-                baseContrast *= (1f + 0.25f * filterIntensity)
+                sat = (1f - filterIntensity).coerceAtLeast(0f)
+                c *= (1f + 0.35f * filterIntensity)
             }
             "Noir" -> {
-                baseSat = 0f
-                baseContrast *= (1f + 0.5f * filterIntensity)
+                sat = (1f - filterIntensity).coerceAtLeast(0f)
+                c *= (1f + 0.65f * filterIntensity)
+            }
+            "Warm" -> {
+                sat *= (1f + 0.15f * filterIntensity)
+            }
+            "Cool" -> {
+                c *= (1f + 0.10f * filterIntensity)
             }
         }
 
         if (isBlackAndWhite) {
-            baseSat = 0f
+            sat = 0f
         }
 
         val satMatrix = ColorMatrix()
-        satMatrix.setToSaturation(baseSat.coerceIn(0f, 3f))
+        satMatrix.setToSaturation(sat.coerceIn(0f, 3f))
 
-        val c = baseContrast.coerceIn(0.1f, 3f)
-        val scale = (c * expFactor).coerceIn(0.1f, 3f)
-        val contrastOffset = 128f * (1f - c)
-        val brightnessOffset = (brightness / 100f) * 64f + (brilliance / 100f) * 32f
+        // 5. Offsets & Shifts
+        val clampedC = c.coerceIn(0.1f, 3.5f)
+        val scale = (clampedC * expFactor).coerceIn(0.1f, 3.5f)
+        val contrastOffset = 128f * (1f - clampedC)
 
-        val warmthShift = (warmth / 100f) * 30f
-        val tintShift = (tint / 100f) * 20f
+        val brightnessOffset = (brightness.coerceIn(-1f, 1f) * 75f) +
+                (brilliance.coerceIn(-1f, 1f) * 35f) +
+                (if (autoEnhanced) 12f else 0f)
 
-        val rOffset = contrastOffset + brightnessOffset + warmthShift + tintShift
-        val gOffset = contrastOffset + brightnessOffset - tintShift
-        val bOffset = contrastOffset + brightnessOffset - warmthShift + tintShift
+        val shadowOffset = shadows.coerceIn(-1f, 1f) * 35f
+        val highlightOffset = highlights.coerceIn(-1f, 1f) * 25f
+
+        var warmthOffset = (warmth.coerceIn(-1f, 1f) * 45f) + (if (autoEnhanced) 8f else 0f)
+        if (filterName == "Warm") warmthOffset += 40f * filterIntensity
+        if (filterName == "Cool") warmthOffset -= 40f * filterIntensity
+
+        val tintOffset = tint.coerceIn(-1f, 1f) * 30f
+
+        val totalBaseOffset = contrastOffset + brightnessOffset + shadowOffset + highlightOffset
+        val rOffset = totalBaseOffset + warmthOffset + tintOffset
+        val gOffset = totalBaseOffset + (brilliance.coerceIn(-1f, 1f) * 10f) - tintOffset
+        val bOffset = totalBaseOffset - warmthOffset + tintOffset
 
         val adjustMatrix = ColorMatrix(
             floatArrayOf(
@@ -174,6 +200,7 @@ data class MediaItem(
     val dayString: String,
     val duration: Long = 0L,
     val isVideo: Boolean = false,
+    val thumbnailUri: Uri? = null,
     val isFavorite: Boolean = false,
     val isHidden: Boolean = false,
     val isDeleted: Boolean = false,
@@ -190,4 +217,15 @@ data class MediaItem(
     val categoryTag: String = "Nature",
     val tripName: String? = null,
     val personOrPetName: String? = null
-)
+) {
+    val durationMs: Long
+        get() = duration
+
+    fun formattedDuration(): String {
+        if (!isVideo || duration <= 0L) return ""
+        val totalSecs = (duration / 1000L).coerceAtLeast(0L)
+        val mins = totalSecs / 60L
+        val secs = totalSecs % 60L
+        return "%d:%02d".format(mins, secs)
+    }
+}

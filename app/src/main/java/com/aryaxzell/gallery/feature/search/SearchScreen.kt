@@ -342,12 +342,15 @@ fun SearchScreen(
                 ) {
                     items(uiState.filteredMedia, key = { it.id }) { item ->
                         PhotoGridItem(
-                            thumbnailUri = item.uri,
+                            thumbnailUri = item.thumbnailUri ?: item.uri,
                             isSelected = false,
                             isSelectionMode = false,
+                            isVideo = item.isVideo,
+                            durationText = item.formattedDuration(),
+                            isFavorite = item.isFavorite,
                             isEdited = item.isEdited,
                             editAdjustments = item.editAdjustments,
-                            onTap = { viewModel.openDetail(item) },
+                            onTap = { viewModel.openDetail(item, uiState.filteredMedia) },
                             onLongPress = { }
                         )
                     }

@@ -26,6 +26,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,8 +57,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.decode.VideoFrameDecoder
 import coil.request.CachePolicy
 import coil.request.ImageRequest
+import coil.request.videoFrameMillis
 import coil.size.Precision
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.CompositionLocalProvider
@@ -336,19 +340,28 @@ fun PhotoGridItem(
     onTap: () -> Unit,
     onLongPress: () -> Unit,
     isEdited: Boolean = false,
-    editAdjustments: EditAdjustments = EditAdjustments()
+    editAdjustments: EditAdjustments = EditAdjustments(),
+    isVideo: Boolean = false,
+    durationText: String? = null,
+    isFavorite: Boolean = false
 ) {
     val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
 
-    val imageRequest = remember(thumbnailUri, context) {
+    val imageRequest = remember(thumbnailUri, isVideo, context) {
         ImageRequest.Builder(context)
             .data(thumbnailUri)
+            .apply {
+                if (isVideo) {
+                    videoFrameMillis(1000)
+                }
+            }
             .crossfade(true)
             .memoryCachePolicy(CachePolicy.ENABLED)
             .diskCachePolicy(CachePolicy.ENABLED)
-            .size(360, 360)
+            .size(280, 280)
             .precision(Precision.INEXACT)
+            .allowRgb565(true)
             .build()
     }
 
@@ -362,7 +375,7 @@ fun PhotoGridItem(
         modifier = Modifier
             .aspectRatio(1f)
             .padding(1.dp)
-            .clip(RoundedCornerShape(2.dp))
+            .clip(RoundedCornerShape(4.dp))
             .pointerInput(isSelectionMode) {
                 detectTapGestures(
                     onTap = { onTap() },
@@ -373,7 +386,7 @@ fun PhotoGridItem(
     ) {
         AsyncImage(
             model = imageRequest,
-            contentDescription = "Photo",
+            contentDescription = if (isVideo) "Video thumbnail" else "Photo thumbnail",
             contentScale = ContentScale.Crop,
             colorFilter = colorFilter,
             modifier = Modifier
@@ -388,12 +401,70 @@ fun PhotoGridItem(
                 )
         )
 
+        // Video gradient scrim and indicator badge
+        if (isVideo) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(36.dp)
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.65f))
+                        )
+                    )
+            )
+
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = "Video",
+                    tint = Color.White,
+                    modifier = Modifier.size(15.dp)
+                )
+                if (!durationText.isNullOrBlank()) {
+                    Text(
+                        text = durationText,
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(start = 2.dp)
+                    )
+                }
+            }
+        }
+
+        // Favorite heart icon indicator
+        if (isFavorite) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(6.dp)
+                    .size(18.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.35f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Favorite,
+                    contentDescription = "Favorite",
+                    tint = Color(0xFFFF2D55),
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+        }
+
         // Dim overlay when selected
         if (isSelected) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.25f))
+                    .background(Color.Black.copy(alpha = 0.30f))
             )
         }
 

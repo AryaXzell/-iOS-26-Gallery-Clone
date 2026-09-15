@@ -25,6 +25,8 @@ data class FilterConfig(
     val isFilterSheetOpen: Boolean = false,
     val filterOnlyEdited: Boolean = false,
     val filterHideScreenshots: Boolean = false,
+    val filterOnlyVideos: Boolean = false,
+    val filterOnlyPhotos: Boolean = false,
     val gridColumns: Int = 3,
     val searchQuery: String = "",
     val searchFilterChip: String = "All"
@@ -42,10 +44,13 @@ data class GalleryUiState(
     val isFilterSheetOpen: Boolean = false,
     val filterOnlyEdited: Boolean = false,
     val filterHideScreenshots: Boolean = false,
+    val filterOnlyVideos: Boolean = false,
+    val filterOnlyPhotos: Boolean = false,
     val gridColumns: Int = 3,
     val searchQuery: String = "",
     val searchFilterChip: String = "All", // All, Photos, Videos, Screenshots, Favorites
     val activeDetailItem: MediaItem? = null,
+    val activeDetailList: List<MediaItem>? = null,
     val activeEditItem: MediaItem? = null,
     val currentEdits: EditAdjustments = EditAdjustments(),
     val activeMemoryPhotos: List<MediaItem>? = null,
@@ -62,10 +67,12 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
 
     private val _filterConfig = MutableStateFlow(FilterConfig())
     private val _activeDetailItem = MutableStateFlow<MediaItem?>(null)
+    private val _activeDetailList = MutableStateFlow<List<MediaItem>?>(null)
     private val _activeEditItem = MutableStateFlow<MediaItem?>(null)
     private val _currentEdits = MutableStateFlow(EditAdjustments())
     private val _activeMemoryPhotos = MutableStateFlow<List<MediaItem>?>(null)
-    private val _activeAlbumDetail = MutableStateFlow<Pair<String, List<MediaItem>>?>(null)
+    private val _activeAlbumName = MutableStateFlow<String?>(null)
+    private val _activeAlbumCustomItems = MutableStateFlow<List<MediaItem>?>(null)
     private val _settings = MutableStateFlow(GallerySettings())
     private val _isSpatialMode = MutableStateFlow(false)
     private val _isLoading = MutableStateFlow(false)
@@ -82,13 +89,15 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
 
     private data class ActiveInteractions(
         val detailItem: MediaItem?,
+        val detailList: List<MediaItem>?,
         val editItem: MediaItem?,
         val currentEdits: EditAdjustments,
         val memoryPhotos: List<MediaItem>?
     )
 
     private data class EnvironmentState(
-        val albumDetail: Pair<String, List<MediaItem>>?,
+        val albumName: String?,
+        val albumCustomItems: List<MediaItem>?,
         val settings: GallerySettings,
         val isSpatialMode: Boolean,
         val isLoading: Boolean
@@ -115,6 +124,12 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         }
         if (config.filterHideScreenshots) {
             filtered = filtered.filter { !it.isScreenshot }
+        }
+        if (config.filterOnlyVideos) {
+            filtered = filtered.filter { it.isVideo }
+        }
+        if (config.filterOnlyPhotos) {
+            filtered = filtered.filter { !it.isVideo }
         }
 
         when (config.searchFilterChip) {
@@ -149,20 +164,22 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
 
     private val activeInteractionsFlow = combine(
         _activeDetailItem,
+        _activeDetailList,
         _activeEditItem,
         _currentEdits,
         _activeMemoryPhotos
-    ) { detail, edit, edits, memory ->
-        ActiveInteractions(detail, edit, edits, memory)
+    ) { detail, list, edit, edits, memory ->
+        ActiveInteractions(detail, list, edit, edits, memory)
     }
 
     private val environmentFlow = combine(
-        _activeAlbumDetail,
+        _activeAlbumName,
+        _activeAlbumCustomItems,
         _settings,
         _isSpatialMode,
         _isLoading
-    ) { album, settings, spatial, loading ->
-        EnvironmentState(album, settings, spatial, loading)
+    ) { albumName, albumCustom, settings, spatial, loading ->
+        EnvironmentState(albumName, albumCustom, settings, spatial, loading)
     }
 
     val uiState: StateFlow<GalleryUiState> = combine(
@@ -170,6 +187,22 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         activeInteractionsFlow,
         environmentFlow
     ) { base, active, env ->
+        val resolvedAlbumDetail = env.albumName?.let { name ->
+            val items = when (name) {
+                "Hidden" -> base.hiddenMedia
+                "Recently Deleted" -> base.deletedMedia
+                "Videos" -> base.allMedia.filter { it.isVideo }
+                "Favorites" -> base.allMedia.filter { it.isFavorite }
+                "Selfies" -> base.allMedia.filter { it.categoryTag == "Selfies" }
+                "Portraits" -> base.allMedia.filter { it.categoryTag == "Portraits" }
+                "Screenshots" -> base.allMedia.filter { it.isScreenshot }
+                "Panoramas" -> base.allMedia.filter { it.categoryTag == "Panoramas" }
+                "Imports" -> base.allMedia
+                else -> env.albumCustomItems ?: base.allMedia
+            }
+            Pair(name, items)
+        }
+
         GalleryUiState(
             allMedia = base.allMedia,
             filteredMedia = base.filteredMedia,
@@ -182,14 +215,17 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
             isFilterSheetOpen = base.config.isFilterSheetOpen,
             filterOnlyEdited = base.config.filterOnlyEdited,
             filterHideScreenshots = base.config.filterHideScreenshots,
+            filterOnlyVideos = base.config.filterOnlyVideos,
+            filterOnlyPhotos = base.config.filterOnlyPhotos,
             gridColumns = base.config.gridColumns,
             searchQuery = base.config.searchQuery,
             searchFilterChip = base.config.searchFilterChip,
             activeDetailItem = active.detailItem,
+            activeDetailList = active.detailList,
             activeEditItem = active.editItem,
             currentEdits = active.currentEdits,
             activeMemoryPhotos = active.memoryPhotos,
-            activeAlbumDetail = env.albumDetail,
+            activeAlbumDetail = resolvedAlbumDetail,
             settings = env.settings,
             isSpatialMode = env.isSpatialMode,
             isLoading = env.isLoading
@@ -391,6 +427,14 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         _filterConfig.value = _filterConfig.value.copy(filterHideScreenshots = enabled)
     }
 
+    fun setFilterOnlyVideos(enabled: Boolean) {
+        _filterConfig.value = _filterConfig.value.copy(filterOnlyVideos = enabled)
+    }
+
+    fun setFilterOnlyPhotos(enabled: Boolean) {
+        _filterConfig.value = _filterConfig.value.copy(filterOnlyPhotos = enabled)
+    }
+
     fun toggleGridDensity() {
         _filterConfig.value = _filterConfig.value.let {
             it.copy(gridColumns = if (it.gridColumns == 3) 5 else 3)
@@ -422,12 +466,18 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun openDetail(item: MediaItem) {
+    fun openDetail(item: MediaItem, browsingList: List<MediaItem>? = null) {
+        _activeDetailItem.value = item
+        _activeDetailList.value = browsingList
+    }
+
+    fun setActiveDetailItem(item: MediaItem) {
         _activeDetailItem.value = item
     }
 
     fun closeDetail() {
         _activeDetailItem.value = null
+        _activeDetailList.value = null
         _isSpatialMode.value = false
     }
 
@@ -481,11 +531,13 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun openAlbumDetail(name: String, items: List<MediaItem>) {
-        _activeAlbumDetail.value = Pair(name, items)
+        _activeAlbumName.value = name
+        _activeAlbumCustomItems.value = items
     }
 
     fun closeAlbumDetail() {
-        _activeAlbumDetail.value = null
+        _activeAlbumName.value = null
+        _activeAlbumCustomItems.value = null
     }
 
     fun createAlbum(name: String) {

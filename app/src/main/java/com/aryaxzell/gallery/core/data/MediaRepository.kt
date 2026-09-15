@@ -24,7 +24,7 @@ class MediaRepository(
     private val context: Context,
     private val dao: GalleryDao
 ) {
-    private val _rawMediaItems = MutableStateFlow<List<MediaItem>>(emptyList())
+    private val _rawMediaItems = MutableStateFlow<List<MediaItem>>(getCuratedDemoMedia())
     val rawMediaItems = _rawMediaItems.asStateFlow()
 
     val metadataFlow: Flow<List<MediaMetadataEntity>> = dao.getAllMetadata()
@@ -94,7 +94,8 @@ class MediaRepository(
                 MediaStore.MediaColumns.WIDTH,
                 MediaStore.MediaColumns.HEIGHT,
                 MediaStore.MediaColumns.SIZE,
-                MediaStore.MediaColumns.MIME_TYPE
+                MediaStore.MediaColumns.MIME_TYPE,
+                MediaStore.Video.Media.DURATION
             )
 
             val queryUri = MediaStore.Files.getContentUri("external")
@@ -103,7 +104,11 @@ class MediaRepository(
                 MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE.toString(),
                 MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO.toString()
             )
-            val sortOrder = "${MediaStore.MediaColumns.DATE_ADDED} DESC"
+            val sortOrder = "${MediaStore.MediaColumns.DATE_ADDED} DESC LIMIT 500"
+
+            val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+            val dayFormat = SimpleDateFormat("d MMMM yyyy", Locale.getDefault())
+            val cachedDateStrMap = HashMap<Long, Pair<String, String>>()
 
             context.contentResolver.query(
                 queryUri,
@@ -119,9 +124,7 @@ class MediaRepository(
                 val heightCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.HEIGHT)
                 val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE)
                 val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.MIME_TYPE)
-
-                val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
-                val dayFormat = SimpleDateFormat("d MMMM yyyy", Locale.getDefault())
+                val durCol = cursor.getColumnIndex(MediaStore.Video.Media.DURATION)
 
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idCol)
@@ -134,6 +137,7 @@ class MediaRepository(
                     val mime = cursor.getString(mimeCol) ?: ""
                     val isVideo = mime.startsWith("video")
                     val isScreenshot = name.contains("Screenshot", ignoreCase = true)
+                    val durationMs = if (durCol != -1 && isVideo) cursor.getLong(durCol) else 0L
 
                     val contentUri = if (isVideo) {
                         ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
@@ -141,23 +145,36 @@ class MediaRepository(
                         ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
                     }
 
-                    val dateObj = Date(dateAddedMs)
-                    val monthYear = monthFormat.format(dateObj)
-                    val dayStr = dayFormat.format(dateObj)
+                    // Key by day boundary to avoid formatting thousands of times
+                    val dayKey = dateAddedMs / 86400000L
+                    val (monthYear, dayStr) = cachedDateStrMap.getOrPut(dayKey) {
+                        val d = Date(dateAddedMs)
+                        Pair(monthFormat.format(d), dayFormat.format(d))
+                    }
+
+                    val resString = if (width > 0 && height > 0) {
+                        val mp = (width.toLong() * height.toLong()) / 1_000_000.0
+                        "${String.format(Locale.US, "%.1f", mp)} MP • $width × $height"
+                    } else "Original Resolution"
 
                     mediaList.add(
                         MediaItem(
                             id = id,
                             uri = contentUri,
+                            thumbnailUri = contentUri,
                             title = name,
                             dateAdded = dateAddedMs,
                             dateString = dayStr,
                             monthYear = monthYear,
                             dayString = dayStr,
+                            duration = durationMs,
                             isVideo = isVideo,
                             isScreenshot = isScreenshot,
-                            resolution = "$width × $height",
-                            fileSize = "${"%.1f".format(sizeBytes / (1024f * 1024f))} MB"
+                            resolution = resString,
+                            fileSize = "${String.format(Locale.US, "%.1f", sizeBytes / (1024f * 1024f))} MB",
+                            cameraModel = if (isVideo) "Device Camcorder" else "Device Camera",
+                            lensInfo = if (isVideo) "Video Recording" else "Standard Lens",
+                            categoryTag = if (isVideo) "Videos" else if (isScreenshot) "Screenshots" else "Photos"
                         )
                     )
                 }
@@ -166,7 +183,17 @@ class MediaRepository(
             // MediaStore permission might not be granted yet
         }
 
-        _rawMediaItems.value = mediaList
+        // If no device media found, populate curated showcase
+        if (mediaList.isEmpty()) {
+            _rawMediaItems.value = getCuratedDemoMedia()
+        } else {
+            // If device has photos but no videos, append sample videos so video features are always testable
+            if (mediaList.none { it.isVideo }) {
+                val sampleVideos = getCuratedDemoMedia().filter { it.isVideo }
+                mediaList.addAll(sampleVideos)
+            }
+            _rawMediaItems.value = mediaList
+        }
     }
 
     suspend fun toggleFavorite(mediaId: Long, currentVal: Boolean) {
@@ -323,64 +350,68 @@ class MediaRepository(
                 MediaItem(
                     id = 1001L,
                     uri = Uri.parse("https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1200&q=80"),
+                    thumbnailUri = Uri.parse("https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=600&q=80"),
                     title = "Yosemite Valley Reflections",
                     dateAdded = now - (0.2 * day).toLong(),
                     dateString = "Today, 14:24",
                     monthYear = "September 2026",
                     dayString = "Today",
                     location = "Yosemite National Park, CA",
-                    cameraModel = "iPhone 16 Pro",
-                    lensInfo = "24 mm f/1.78 ISO 50",
-                    resolution = "48 MP • 8064 × 6048",
-                    fileSize = "5.8 MB",
+                    cameraModel = "Sony Alpha 7R V",
+                    lensInfo = "FE 24-70mm F2.8 GM II • 24 mm • f/8.0 • 1/125s • ISO 100",
+                    resolution = "61.0 MP • 9504 × 6336",
+                    fileSize = "18.4 MB",
                     categoryTag = "Nature",
                     tripName = "California Roadtrip"
                 ),
                 MediaItem(
                     id = 1002L,
                     uri = Uri.parse("https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=1200&q=80"),
+                    thumbnailUri = Uri.parse("https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&q=80"),
                     title = "Portrait of Emma",
                     dateAdded = now - (0.5 * day).toLong(),
                     dateString = "Today, 11:15",
                     monthYear = "September 2026",
                     dayString = "Today",
                     location = "SoHo, New York",
-                    cameraModel = "iPhone 16 Pro",
-                    lensInfo = "77 mm f/2.8 ISO 125",
-                    resolution = "48 MP • 8064 × 6048",
-                    fileSize = "4.2 MB",
+                    cameraModel = "Fujifilm GFX 100 II",
+                    lensInfo = "GF 110mm F2 R LM WR • 110 mm • f/2.0 • 1/250s • ISO 160",
+                    resolution = "102.0 MP • 11648 × 8736",
+                    fileSize = "32.1 MB",
                     categoryTag = "Portraits",
                     personOrPetName = "Emma"
                 ),
                 MediaItem(
                     id = 1003L,
                     uri = Uri.parse("https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=1200&q=80"),
+                    thumbnailUri = Uri.parse("https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=600&q=80"),
                     title = "Milo the Golden Retriever",
                     dateAdded = now - 1 * day,
                     dateString = "Yesterday, 16:40",
                     monthYear = "September 2026",
                     dayString = "Yesterday",
                     location = "Central Park, New York",
-                    cameraModel = "iPhone 16 Pro",
-                    lensInfo = "48 mm f/1.78 ISO 80",
-                    resolution = "24 MP • 5712 × 4284",
-                    fileSize = "3.6 MB",
+                    cameraModel = "Canon EOS R5 Mark II",
+                    lensInfo = "RF 85mm F1.2L USM • 85 mm • f/1.4 • 1/1000s • ISO 200",
+                    resolution = "45.0 MP • 8192 × 5464",
+                    fileSize = "14.2 MB",
                     categoryTag = "Pets",
                     personOrPetName = "Milo"
                 ),
                 MediaItem(
                     id = 1004L,
                     uri = Uri.parse("https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200&q=80"),
+                    thumbnailUri = Uri.parse("https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&q=80"),
                     title = "Tropical Sunrise Horizon",
                     dateAdded = now - 2 * day,
                     dateString = "Sep 12, 2026, 06:12",
                     monthYear = "September 2026",
                     dayString = "September 12, 2026",
                     location = "Uluwatu, Bali",
-                    cameraModel = "iPhone 16 Pro",
-                    lensInfo = "13 mm f/2.2 ISO 32",
-                    resolution = "48 MP • 8064 × 6048",
-                    fileSize = "6.1 MB",
+                    cameraModel = "Google Pixel 9 Pro XL",
+                    lensInfo = "Main 50MP • 24 mm • f/1.68 • 1/640s • ISO 50",
+                    resolution = "50.0 MP • 8192 × 6144",
+                    fileSize = "11.6 MB",
                     categoryTag = "Nature",
                     tripName = "Bali Escape",
                     isFavorite = true
@@ -388,47 +419,50 @@ class MediaRepository(
                 MediaItem(
                     id = 1005L,
                     uri = Uri.parse("https://images.unsplash.com/photo-1517841905240-472988babdf9?w=1200&q=80"),
+                    thumbnailUri = Uri.parse("https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&q=80"),
                     title = "Golden Hour Selfie",
                     dateAdded = now - 3 * day,
                     dateString = "Sep 11, 2026, 18:30",
                     monthYear = "September 2026",
                     dayString = "September 11, 2026",
                     location = "Santa Monica Pier, CA",
-                    cameraModel = "iPhone 16 Pro TrueDepth",
-                    lensInfo = "23 mm f/1.9 ISO 100",
-                    resolution = "12 MP • 4032 × 3024",
-                    fileSize = "2.9 MB",
+                    cameraModel = "Samsung Galaxy S24 Ultra",
+                    lensInfo = "Front Camera • 22 mm • f/2.2 • 1/200s • ISO 80",
+                    resolution = "12.0 MP • 4000 × 3000",
+                    fileSize = "3.8 MB",
                     categoryTag = "Selfies",
                     personOrPetName = "Sophia"
                 ),
                 MediaItem(
                     id = 1006L,
                     uri = Uri.parse("https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=1200&q=80"),
+                    thumbnailUri = Uri.parse("https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&q=80"),
                     title = "Artisan Garden Salad",
                     dateAdded = now - 5 * day,
                     dateString = "Sep 9, 2026, 13:05",
                     monthYear = "September 2026",
                     dayString = "September 9, 2026",
                     location = "Milan, Italy",
-                    cameraModel = "iPhone 16 Pro",
-                    lensInfo = "24 mm f/1.78 ISO 64",
-                    resolution = "24 MP • 5712 × 4284",
-                    fileSize = "3.8 MB",
+                    cameraModel = "Leica Q3",
+                    lensInfo = "Summilux 28mm f/1.7 ASPH • f/2.8 • 1/160s • ISO 125",
+                    resolution = "60.0 MP • 9520 × 6336",
+                    fileSize = "22.5 MB",
                     categoryTag = "Food"
                 ),
                 MediaItem(
                     id = 1007L,
                     uri = Uri.parse("https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=1200&q=80"),
+                    thumbnailUri = Uri.parse("https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=600&q=80"),
                     title = "Kyoto Bamboo Grove Walk",
                     dateAdded = now - 8 * day,
                     dateString = "Sep 6, 2026, 09:45",
                     monthYear = "September 2026",
                     dayString = "September 6, 2026",
                     location = "Arashiyama, Kyoto",
-                    cameraModel = "iPhone 16 Pro",
-                    lensInfo = "24 mm f/1.78 ISO 200",
-                    resolution = "48 MP • 8064 × 6048",
-                    fileSize = "7.3 MB",
+                    cameraModel = "Nikon Z8",
+                    lensInfo = "NIKKOR Z 35mm f/1.8 S • 35 mm • f/4.0 • 1/80s • ISO 400",
+                    resolution = "45.7 MP • 8256 × 5504",
+                    fileSize = "16.8 MB",
                     categoryTag = "Nature",
                     tripName = "Kyoto Japan",
                     isFavorite = true
@@ -436,32 +470,34 @@ class MediaRepository(
                 MediaItem(
                     id = 1008L,
                     uri = Uri.parse("https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=1200&q=80"),
+                    thumbnailUri = Uri.parse("https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=600&q=80"),
                     title = "Luna Sleeping in Sunbeam",
                     dateAdded = now - 12 * day,
                     dateString = "Sep 2, 2026, 15:20",
                     monthYear = "September 2026",
                     dayString = "September 2, 2026",
                     location = "Living Room",
-                    cameraModel = "iPhone 16 Pro",
-                    lensInfo = "48 mm f/1.78 ISO 160",
-                    resolution = "24 MP • 5712 × 4284",
-                    fileSize = "3.2 MB",
+                    cameraModel = "Apple iPhone 16 Pro Max",
+                    lensInfo = "Main 48mm 2x Tele • f/1.78 • 1/60s • ISO 250",
+                    resolution = "24.0 MP • 5712 × 4284",
+                    fileSize = "4.5 MB",
                     categoryTag = "Pets",
                     personOrPetName = "Luna"
                 ),
                 MediaItem(
                     id = 1009L,
                     uri = Uri.parse("https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=1200&q=80"),
+                    thumbnailUri = Uri.parse("https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=600&q=80"),
                     title = "Pacific Coast Highway Vista",
                     dateAdded = now - 20 * day,
                     dateString = "Aug 25, 2026, 17:10",
                     monthYear = "August 2026",
                     dayString = "August 25, 2026",
                     location = "Big Sur, CA",
-                    cameraModel = "iPhone 16 Pro",
-                    lensInfo = "13 mm f/2.2 ISO 40",
-                    resolution = "48 MP • 8064 × 6048",
-                    fileSize = "6.9 MB",
+                    cameraModel = "Hasselblad X2D 100C",
+                    lensInfo = "XCD 38mm f/2.5 V • 38 mm • f/5.6 • 1/320s • ISO 64",
+                    resolution = "100.0 MP • 11656 × 8742",
+                    fileSize = "36.2 MB",
                     categoryTag = "Panoramas",
                     tripName = "California Roadtrip",
                     isFavorite = true
@@ -469,51 +505,95 @@ class MediaRepository(
                 MediaItem(
                     id = 1010L,
                     uri = Uri.parse("https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=1200&q=80"),
+                    thumbnailUri = Uri.parse("https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=600&q=80"),
                     title = "Sunset Over Swiss Alps",
                     dateAdded = now - 25 * day,
                     dateString = "Aug 20, 2026, 19:40",
                     monthYear = "August 2026",
                     dayString = "August 20, 2026",
                     location = "Zermatt, Switzerland",
-                    cameraModel = "iPhone 16 Pro",
-                    lensInfo = "120 mm f/2.8 ISO 320",
-                    resolution = "48 MP • 8064 × 6048",
-                    fileSize = "5.1 MB",
+                    cameraModel = "Sony Alpha 1",
+                    lensInfo = "FE 70-200mm F2.8 GM OSS II • 135 mm • f/4.0 • 1/500s • ISO 100",
+                    resolution = "50.1 MP • 8640 × 5760",
+                    fileSize = "19.8 MB",
                     categoryTag = "Nature",
                     tripName = "Swiss Alps"
                 ),
                 MediaItem(
                     id = 1011L,
                     uri = Uri.parse("https://images.unsplash.com/photo-1488161628813-04466f872be2?w=1200&q=80"),
+                    thumbnailUri = Uri.parse("https://images.unsplash.com/photo-1488161628813-04466f872be2?w=600&q=80"),
                     title = "Leo by the Shoreline",
                     dateAdded = now - 35 * day,
                     dateString = "Aug 10, 2026, 16:15",
                     monthYear = "August 2026",
                     dayString = "August 10, 2026",
                     location = "Positano, Italy",
-                    cameraModel = "iPhone 16 Pro",
-                    lensInfo = "77 mm f/2.8 ISO 100",
-                    resolution = "24 MP • 5712 × 4284",
-                    fileSize = "4.0 MB",
+                    cameraModel = "Leica M11-P",
+                    lensInfo = "APO-Summicron-M 50mm f/2 ASPH • f/2.8 • 1/1000s • ISO 64",
+                    resolution = "60.3 MP • 9528 × 6328",
+                    fileSize = "21.4 MB",
                     categoryTag = "Portraits",
                     personOrPetName = "Leo",
                     tripName = "Amalfi Coast"
                 ),
+                // Curated Video 1: 4K Drone
                 MediaItem(
                     id = 1012L,
                     uri = Uri.parse("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"),
+                    thumbnailUri = Uri.parse("https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80"),
                     title = "Cinematic Drone Trail",
-                    dateAdded = now - 40 * day,
-                    dateString = "Aug 5, 2026, 14:00",
-                    monthYear = "August 2026",
-                    dayString = "August 5, 2026",
+                    dateAdded = now - (0.3 * day).toLong(),
+                    dateString = "Today, 12:10",
+                    monthYear = "September 2026",
+                    dayString = "Today",
                     duration = 15000L,
                     isVideo = true,
                     location = "Kauai, Hawaii",
-                    cameraModel = "iPhone 16 Pro 4K HDR",
-                    lensInfo = "24 mm f/1.78 ProRes",
+                    cameraModel = "DJI Mavic 3 Cine",
+                    lensInfo = "Hasselblad L2D-20c 24mm • f/2.8 • Apple ProRes 422 HQ",
                     resolution = "4K • 3840 × 2160 • 60 fps",
                     fileSize = "48.5 MB",
+                    categoryTag = "Videos",
+                    tripName = "Hawaii Expedition"
+                ),
+                // Curated Video 2: Nature Open Movie
+                MediaItem(
+                    id = 1013L,
+                    uri = Uri.parse("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"),
+                    thumbnailUri = Uri.parse("https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&q=80"),
+                    title = "Sunny Forest Meadow Reel",
+                    dateAdded = now - 4 * day,
+                    dateString = "Sep 10, 2026, 15:30",
+                    monthYear = "September 2026",
+                    dayString = "September 10, 2026",
+                    duration = 60000L,
+                    isVideo = true,
+                    location = "Black Forest, Germany",
+                    cameraModel = "Sony FX3 Cinema Line",
+                    lensInfo = "FE C 16-35mm T3.1 G Cine • 28 mm • 4K 120fps",
+                    resolution = "1080p HD • 1920 × 1080 • 60 fps",
+                    fileSize = "32.0 MB",
+                    categoryTag = "Videos",
+                    isFavorite = true
+                ),
+                // Curated Video 3: Ocean Waves Coast
+                MediaItem(
+                    id = 1014L,
+                    uri = Uri.parse("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4"),
+                    thumbnailUri = Uri.parse("https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&q=80"),
+                    title = "Pacific Ocean Surf Break",
+                    dateAdded = now - 15 * day,
+                    dateString = "Aug 30, 2026, 17:45",
+                    monthYear = "August 2026",
+                    dayString = "August 30, 2026",
+                    duration = 15000L,
+                    isVideo = true,
+                    location = "Pipeline Beach, Oahu",
+                    cameraModel = "RED V-Raptor 8K",
+                    lensInfo = "Canon CN-E 50mm T1.3 L F • 4K High Speed",
+                    resolution = "4K • 3840 × 2160 • 60 fps",
+                    fileSize = "52.3 MB",
                     categoryTag = "Videos"
                 )
             )

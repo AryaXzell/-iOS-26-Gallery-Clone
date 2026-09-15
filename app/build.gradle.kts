@@ -131,6 +131,7 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   implementation(libs.androidx.datastore.preferences)
   implementation(libs.coil.compose)
+  implementation(libs.coil.video)
   implementation(libs.androidx.media3.exoplayer)
   implementation(libs.androidx.media3.ui)
   implementation(libs.kotlinx.coroutines.android)

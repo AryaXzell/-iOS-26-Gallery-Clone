@@ -139,14 +139,19 @@ fun LibraryScreen(
                     items(items, key = { it.id }) { item ->
                         val isSelected = uiState.selectedIds.contains(item.id)
                         PhotoGridItem(
-                            thumbnailUri = item.uri,
+                            thumbnailUri = item.thumbnailUri ?: item.uri,
                             isSelected = isSelected,
                             isSelectionMode = uiState.isSelectionMode,
+                            isVideo = item.isVideo,
+                            durationText = item.formattedDuration(),
+                            isFavorite = item.isFavorite,
+                            isEdited = item.isEdited,
+                            editAdjustments = item.editAdjustments,
                             onTap = {
                                 if (uiState.isSelectionMode) {
                                     viewModel.toggleItemSelection(item.id)
                                 } else {
-                                    viewModel.openDetail(item)
+                                    viewModel.openDetail(item, uiState.filteredMedia)
                                 }
                             },
                             onLongPress = {
@@ -256,8 +261,12 @@ fun LibraryScreen(
                 FilterSheetContent(
                     onlyEdited = uiState.filterOnlyEdited,
                     hideScreenshots = uiState.filterHideScreenshots,
+                    onlyVideos = uiState.filterOnlyVideos,
+                    onlyPhotos = uiState.filterOnlyPhotos,
                     onOnlyEditedChange = { viewModel.setFilterOnlyEdited(it) },
                     onHideScreenshotsChange = { viewModel.setFilterHideScreenshots(it) },
+                    onOnlyVideosChange = { viewModel.setFilterOnlyVideos(it) },
+                    onOnlyPhotosChange = { viewModel.setFilterOnlyPhotos(it) },
                     onDismiss = { viewModel.setFilterSheetOpen(false) }
                 )
             }
@@ -407,8 +416,12 @@ fun SelectionActionBar(
 fun FilterSheetContent(
     onlyEdited: Boolean,
     hideScreenshots: Boolean,
+    onlyVideos: Boolean = false,
+    onlyPhotos: Boolean = false,
     onOnlyEditedChange: (Boolean) -> Unit,
     onHideScreenshotsChange: (Boolean) -> Unit,
+    onOnlyVideosChange: (Boolean) -> Unit = {},
+    onOnlyPhotosChange: (Boolean) -> Unit = {},
     onDismiss: () -> Unit
 ) {
     Column(
@@ -427,7 +440,49 @@ fun FilterSheetContent(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp)
+                .padding(vertical = 6.dp)
+        ) {
+            Checkbox(
+                checked = onlyVideos,
+                onCheckedChange = {
+                    onOnlyVideosChange(it)
+                    if (it) onOnlyPhotosChange(false)
+                },
+                colors = CheckboxDefaults.colors(checkedColor = Color(0xFF007AFF))
+            )
+            Text(
+                text = "Only Videos",
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(start = 12.dp)
+            )
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp)
+        ) {
+            Checkbox(
+                checked = onlyPhotos,
+                onCheckedChange = {
+                    onOnlyPhotosChange(it)
+                    if (it) onOnlyVideosChange(false)
+                },
+                colors = CheckboxDefaults.colors(checkedColor = Color(0xFF007AFF))
+            )
+            Text(
+                text = "Only Photos",
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(start = 12.dp)
+            )
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp)
         ) {
             Checkbox(
                 checked = onlyEdited,
@@ -445,7 +500,7 @@ fun FilterSheetContent(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp)
+                .padding(vertical = 6.dp)
         ) {
             Checkbox(
                 checked = hideScreenshots,

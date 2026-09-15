@@ -96,12 +96,14 @@ import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
+import coil.size.Precision
 import coil.size.Size
 import com.aryaxzell.gallery.R
 import com.aryaxzell.gallery.core.data.MediaItem
 import com.aryaxzell.gallery.core.designsystem.GlassIconButton
 import com.aryaxzell.gallery.core.designsystem.GlassSurface
 import com.aryaxzell.gallery.core.designsystem.GlassTier
+import com.aryaxzell.gallery.core.util.MediaMetadataExtractor
 import com.aryaxzell.gallery.feature.GalleryUiState
 import com.aryaxzell.gallery.feature.GalleryViewModel
 import com.aryaxzell.gallery.feature.collections.AddToAlbumDialog
@@ -117,10 +119,26 @@ fun PhotoDetailScreen(
     onEdit: (MediaItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val items = uiState.filteredMedia
+    val rawItems = remember(uiState.activeDetailList, uiState.activeAlbumDetail, uiState.filteredMedia, uiState.allMedia) {
+        uiState.activeDetailList
+            ?: uiState.activeAlbumDetail?.second
+            ?: uiState.filteredMedia.ifEmpty { uiState.allMedia }
+    }
     val currentItem = uiState.activeDetailItem ?: return
-    val initialPage = items.indexOfFirst { it.id == currentItem.id }.coerceAtLeast(0)
+    val items = remember(rawItems, currentItem) {
+        if (rawItems.any { it.id == currentItem.id }) rawItems else listOf(currentItem) + rawItems
+    }
+    val initialPage = remember(items, currentItem.id) {
+        items.indexOfFirst { it.id == currentItem.id }.coerceAtLeast(0)
+    }
     val pagerState = rememberPagerState(initialPage = initialPage, pageCount = { items.size })
+
+    LaunchedEffect(pagerState.currentPage, items) {
+        val visible = items.getOrNull(pagerState.currentPage)
+        if (visible != null && visible.id != currentItem.id) {
+            viewModel.setActiveDetailItem(visible)
+        }
+    }
 
     var showToolbars by remember { mutableStateOf(true) }
     var showInfoSheet by remember { mutableStateOf(false) }
@@ -175,16 +193,17 @@ fun PhotoDetailScreen(
                 // Video Player with iOS 26 overlay controls
                 IOSVideoPlayer(
                     item = item,
+                    isActivePage = (pagerState.currentPage == page),
                     showControls = showToolbars,
                     onToggleControls = { showToolbars = !showToolbars }
                 )
             } else {
                 // Photo Viewer with zoom, pan, and spatial tilt
-                var scale by remember { mutableFloatStateOf(1f) }
-                var offset by remember { mutableStateOf(Offset.Zero) }
+                var scale by remember(page) { mutableFloatStateOf(1f) }
+                var offset by remember(page) { mutableStateOf(Offset.Zero) }
 
-                LaunchedEffect(scale) {
-                    isZoomed = scale > 1.05f
+                LaunchedEffect(scale, pagerState.currentPage) {
+                    isZoomed = (pagerState.currentPage == page) && (scale > 1.05f)
                 }
 
                 val transformState = rememberTransformableState { zoomChange, panChange, _ ->
@@ -225,7 +244,9 @@ fun PhotoDetailScreen(
                             .crossfade(true)
                             .memoryCachePolicy(CachePolicy.ENABLED)
                             .diskCachePolicy(CachePolicy.ENABLED)
-                            .size(Size.ORIGINAL)
+                            .size(1920, 1920)
+                            .precision(Precision.INEXACT)
+                            .allowRgb565(true)
                             .build()
                     }
 
@@ -233,6 +254,7 @@ fun PhotoDetailScreen(
                         when (item.editAdjustments.cropAspectRatio) {
                             "Square" -> 1f
                             "16:9" -> 16f / 9f
+                            "9:16" -> 9f / 16f
                             "4:3" -> 4f / 3f
                             "3:2" -> 3f / 2f
                             else -> null
@@ -563,21 +585,31 @@ fun formatDuration(ms: Long): String {
 @Composable
 fun IOSVideoPlayer(
     item: MediaItem,
+    isActivePage: Boolean = true,
     showControls: Boolean,
     onToggleControls: () -> Unit
 ) {
     val context = LocalContext.current
-    var isPlaying by remember { mutableStateOf(true) }
+    var isPlaying by remember(item.id) { mutableStateOf(true) }
     var isMuted by remember { mutableStateOf(false) }
     var isScrubbing by remember { mutableStateOf(false) }
-    var currentPosition by remember { mutableFloatStateOf(0f) }
-    var totalDuration by remember { mutableFloatStateOf(15000f) }
+    var currentPosition by remember(item.id) { mutableFloatStateOf(0f) }
+    var totalDuration by remember(item.id, item.durationMs) {
+        mutableFloatStateOf(if (item.durationMs > 0) item.durationMs.toFloat() else 15000f)
+    }
 
     val exoPlayer = remember(item.id) {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(Media3Item.fromUri(item.uri))
             prepare()
             playWhenReady = true
+        }
+    }
+
+    LaunchedEffect(isActivePage) {
+        if (!isActivePage) {
+            isPlaying = false
+            exoPlayer.pause()
         }
     }
 
@@ -763,6 +795,11 @@ fun IOSVideoPlayer(
 
 @Composable
 fun PhotoInfoSheet(item: MediaItem) {
+    val context = LocalContext.current
+    val meta = remember(item.id, item.uri) {
+        MediaMetadataExtractor.extract(context, item)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -780,7 +817,7 @@ fun PhotoInfoSheet(item: MediaItem) {
             modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
         )
 
-        // Camera & lens card
+        // Camera, lens & specs card
         GlassSurface(
             tier = GlassTier.Controls,
             shape = RoundedCornerShape(16.dp),
@@ -789,24 +826,32 @@ fun PhotoInfoSheet(item: MediaItem) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Default.CameraAlt,
+                        imageVector = if (item.isVideo) Icons.Default.PlayArrow else Icons.Default.CameraAlt,
                         contentDescription = null,
                         tint = Color(0xFF007AFF),
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = item.cameraModel,
+                        text = meta.cameraModel,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold
                     )
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "${item.lensInfo} • ${item.resolution} • ${item.fileSize}",
+                    text = "${meta.lensInfo} • ${meta.resolution} • ${meta.fileSize}",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
                 )
+                if (meta.extraSpecs.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = meta.extraSpecs,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                    )
+                }
             }
         }
 
@@ -831,12 +876,12 @@ fun PhotoInfoSheet(item: MediaItem) {
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = item.location,
+                        text = meta.location,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Recorded via GPS metadata",
+                        text = if (meta.location.contains(",")) "Recorded via GPS metadata" else "No GPS tag embedded in media",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
