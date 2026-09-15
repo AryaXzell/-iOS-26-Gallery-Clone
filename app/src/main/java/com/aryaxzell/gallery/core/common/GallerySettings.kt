@@ -19,7 +19,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 data class GallerySettings(
     val reduceTransparency: Boolean = false,
     val reduceMotion: Boolean = false,
-    val liquidGlassEnabled: Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+    val liquidGlassEnabled: Boolean = false
 )
 
 val LocalGallerySettings = compositionLocalOf { GallerySettings() }
@@ -40,7 +40,7 @@ class GallerySettingsRepository(private val context: Context) {
             }
         }
         .map { preferences ->
-            val defaultLiquidGlass = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+            val defaultLiquidGlass = false
             GallerySettings(
                 reduceTransparency = preferences[PreferencesKeys.REDUCE_TRANSPARENCY] ?: false,
                 reduceMotion = preferences[PreferencesKeys.REDUCE_MOTION] ?: false,

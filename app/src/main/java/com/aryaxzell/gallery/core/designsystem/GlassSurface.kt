@@ -92,7 +92,7 @@ fun GlassSurface(
     val ambientShadowColor = remember(isDark) { Color.Black.copy(alpha = if (isDark) 0.35f else 0.08f) }
     val spotShadowColor = remember(isDark) { Color.Black.copy(alpha = if (isDark) 0.40f else 0.12f) }
 
-    if (settings.reduceTransparency || !settings.liquidGlassEnabled) {
+    if (settings.reduceTransparency) {
         // Solid surface fallback for accessibility
         Surface(
             modifier = modifier,
@@ -127,7 +127,7 @@ fun GlassSurface(
             )
         }
 
-        val hasHaze = hazeState != null
+        val hasHaze = settings.liquidGlassEnabled && hazeState != null
 
         // Liquid Glass Surface with spec-exact tint, blur, specular rim highlight, and depth
         Box(
@@ -143,7 +143,7 @@ fun GlassSurface(
                     } else Modifier
                 )
                 .then(
-                    if (hasHaze && hazeState != null) {
+                    if (hasHaze) {
                         Modifier.hazeChild(
                             state = hazeState,
                             shape = shape,
